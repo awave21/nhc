@@ -7,7 +7,7 @@ RUN composer install --no-dev --no-interaction --prefer-dist --optimize-autoload
 FROM node:22-alpine AS frontend_build
 
 WORKDIR /app
-RUN apk add --no-cache php84 php84-phar php84-openssl php84-mbstring php84-tokenizer php84-ctype php84-session php84-fileinfo php84-dom php84-xml php84-xmlwriter php84-simplexml php84-pdo php84-pdo_mysql php84-curl php84-intl \
+RUN apk add --no-cache php84 php84-phar php84-openssl php84-mbstring php84-tokenizer php84-ctype php84-session php84-fileinfo php84-dom php84-xml php84-xmlwriter php84-simplexml php84-pdo php84-pdo_mysql php84-pdo_pgsql php84-curl php84-intl \
     && ln -sf /usr/bin/php84 /usr/bin/php
 COPY . .
 COPY --from=composer_deps /app/vendor ./vendor
@@ -18,8 +18,8 @@ FROM php:8.4-fpm-alpine AS runtime
 
 WORKDIR /var/www/html
 
-RUN apk add --no-cache nginx supervisor libzip-dev icu-dev oniguruma-dev \
-    && docker-php-ext-install pdo_mysql bcmath intl opcache \
+RUN apk add --no-cache nginx supervisor libzip-dev icu-dev oniguruma-dev postgresql-dev \
+    && docker-php-ext-install pdo_pgsql pdo_mysql bcmath intl opcache \
     && rm -rf /var/cache/apk/*
 
 COPY --from=composer_deps /app/vendor ./vendor
