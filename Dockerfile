@@ -26,7 +26,7 @@ COPY --from=composer_deps /app/vendor ./vendor
 COPY . .
 COPY --from=frontend_build /app/public/build ./public/build
 
-COPY docker/nginx.conf /etc/nginx/http.d/default.conf
+COPY docker/nginx.conf /etc/nginx/http.d/default.conf.template
 COPY docker/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
 
@@ -34,8 +34,8 @@ RUN chmod +x /usr/local/bin/entrypoint.sh \
     && mkdir -p /run/nginx /var/log/supervisor \
     && chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache
 
-# Coolify: в UI задайте «Ports Exposes» = 8080 (совпадает с listen в docker/nginx.conf).
-# Иначе прокси может смотреть на другой порт (например 3000 от старого Nixpacks-плана).
+# Порт контейнера = переменная окружения PORT (Coolify часто ставит 3000). По умолчанию 8080.
+ENV PORT=8080
 EXPOSE 8080
 
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
