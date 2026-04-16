@@ -15,6 +15,18 @@ export type DialogiConversation = {
     lastMessageAt: string | null;
 };
 
+/** Последняя эскалация / заявка для беседы (Supabase) */
+export type DialogiThreadEntitySummary = {
+    id: string;
+    summary: string | null;
+    at: string | null;
+};
+
+export type DialogiThreadContextEntry = {
+    latestAppeal: DialogiThreadEntitySummary | null;
+    latestOrder: DialogiThreadEntitySummary | null;
+};
+
 export type DialogiPageProps = {
     conversations: DialogiConversation[];
     messages: DialogiMessage[];
@@ -27,4 +39,6 @@ export type DialogiPageProps = {
     initialConversationId?: string | null;
     /** Открыть тред по username, как в title беседы (?username=), без учёта регистра и ведущего @ */
     initialUsername?: string | null;
+    /** Ключ — id беседы (tg_chat_id); последние обращение и заявка из Supabase */
+    threadContextByConversation?: Record<string, DialogiThreadContextEntry>;
 };

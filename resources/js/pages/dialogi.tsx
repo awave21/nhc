@@ -16,6 +16,8 @@ export default function Dialogi({
     const page = usePage<DialogiPageProps>();
     const initialConversationId = page.props.initialConversationId ?? null;
     const initialUsername = page.props.initialUsername ?? null;
+    const threadContextByConversation =
+        page.props.threadContextByConversation ?? {};
 
     const [bundle, setBundle] = useState({
         conversations: initialConversations,
@@ -108,6 +110,7 @@ export default function Dialogi({
                     onLoadMore={hasMore ? loadMore : undefined}
                     initialConversationId={initialConversationId}
                     initialUsername={initialUsername}
+                    threadContextByConversation={threadContextByConversation}
                 />
             </div>
         </div>

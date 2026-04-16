@@ -1,0 +1,6 @@
+# Nixpacks PHP template adds `location /` for Laravel (IS_LARAVEL) and again when
+# NIXPACKS_PHP_FALLBACK_PATH is set. Coolify sets both, which produces duplicate
+# `location /` and nginx fails with: duplicate location "/" in /nginx.conf.
+# Clearing the fallback keeps a single Laravel `try_files` block.
+[variables]
+NIXPACKS_PHP_FALLBACK_PATH = ""

@@ -1,3 +1,4 @@
+import { Link } from '@inertiajs/react';
 import {
     Brush,
     Camera,
@@ -6,6 +7,7 @@ import {
     CircleOff,
     CircleUserRound,
     File,
+    FileText,
     Image,
     ListFilter,
     MessageSquareDashed,
@@ -22,6 +24,7 @@ import {
     UserRound,
     Users,
     Video,
+    X,
 } from 'lucide-react';
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
@@ -46,9 +49,19 @@ import {
 } from '@/components/ui/resizable';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { compareDialogiInstants } from '@/lib/compare-dialogi-instants';
+import {
+    readDialogiBannerDismissed,
+    writeDialogiBannerDismissed,
+    type DialogiBannerDismissed,
+} from '@/lib/dialogi-thread-banner-storage';
 import { formatChatMessageTime } from '@/lib/format-chat-message-time';
 import { cn } from '@/lib/utils';
-import type { DialogiConversation, DialogiMessage } from '@/types/dialogi';
+import { appeals, order } from '@/routes';
+import type {
+    DialogiConversation,
+    DialogiMessage,
+    DialogiThreadContextEntry,
+} from '@/types/dialogi';
 
 function titleAvatarLetter(title: string): string {
     const base = title.replace(/^@/u, '').trim();
@@ -114,6 +127,7 @@ export type ChatTemplateProps = {
     onLoadMore?: () => void;
     initialConversationId?: string | null;
     initialUsername?: string | null;
+    threadContextByConversation?: Record<string, DialogiThreadContextEntry>;
 };
 
 /**
@@ -139,6 +153,7 @@ export const Home = ({
     onLoadMore,
     initialConversationId = null,
     initialUsername = null,
+    threadContextByConversation = {},
 }: ChatTemplateProps) => {
     const [selectedId, setSelectedId] = useState(() =>
         resolveInitialThreadId(
@@ -148,8 +163,25 @@ export const Home = ({
         ),
     );
     const [search, setSearch] = useState('');
+    const [bannerDismissed, setBannerDismissed] =
+        useState<DialogiBannerDismissed>(readDialogiBannerDismissed);
     const threadEndRef = useRef<HTMLDivElement>(null);
     const appliedInitialFromUrl = useRef(false);
+
+    const patchBannerDismiss = (
+        conversationId: string,
+        patch: { appeal?: string; order?: string },
+    ) => {
+        setBannerDismissed((prev) => {
+            const next: DialogiBannerDismissed = {
+                ...prev,
+                [conversationId]: { ...prev[conversationId], ...patch },
+            };
+            writeDialogiBannerDismissed(next);
+
+            return next;
+        });
+    };
 
     useEffect(() => {
         if (conversations.length === 0) {
@@ -215,6 +247,36 @@ export const Home = ({
             .slice()
             .sort(sortMessages);
     }, [messages, activeConversationId]);
+
+    const threadContextEntry = threadContextByConversation[activeConversationId];
+
+    const visibleAppeal = useMemo(() => {
+        const a = threadContextEntry?.latestAppeal;
+
+        if (!a) {
+            return null;
+        }
+
+        if (bannerDismissed[activeConversationId]?.appeal === a.id) {
+            return null;
+        }
+
+        return a;
+    }, [threadContextEntry, bannerDismissed, activeConversationId]);
+
+    const visibleOrder = useMemo(() => {
+        const o = threadContextEntry?.latestOrder;
+
+        if (!o) {
+            return null;
+        }
+
+        if (bannerDismissed[activeConversationId]?.order === o.id) {
+            return null;
+        }
+
+        return o;
+    }, [threadContextEntry, bannerDismissed, activeConversationId]);
 
     useLayoutEffect(() => {
         threadEndRef.current?.scrollIntoView({
@@ -476,6 +538,127 @@ export const Home = ({
                                 </Button>
                             </div>
                         </div>
+
+                        {activeConversationId !== '_default' &&
+                        (visibleAppeal || visibleOrder) ? (
+                            <div className="shrink-0 border-b border-sidebar-border/50 bg-muted/35 px-4 py-2.5 dark:border-sidebar-border/80">
+                                <p className="mb-1.5 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
+                                    По данным Supabase
+                                </p>
+                                <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+                                    {visibleAppeal ? (
+                                        <div
+                                            className={cn(
+                                                'flex min-w-0 flex-1 items-center gap-2 rounded-lg border border-amber-500/25 bg-amber-500/[0.07] px-2.5 py-1.5 dark:border-amber-400/20 dark:bg-amber-400/[0.08]',
+                                            )}
+                                        >
+                                            <CircleAlert
+                                                className="size-3.5 shrink-0 text-amber-700/80 dark:text-amber-300/90"
+                                                aria-hidden
+                                            />
+                                            <div className="min-w-0 flex-1">
+                                                <p className="text-xs font-medium text-foreground">
+                                                    Последнее обращение
+                                                </p>
+                                                {visibleAppeal.summary ? (
+                                                    <p className="truncate text-[11px] text-muted-foreground">
+                                                        {visibleAppeal.summary}
+                                                    </p>
+                                                ) : null}
+                                            </div>
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                className="h-7 shrink-0 px-2 text-xs"
+                                                asChild
+                                            >
+                                                <Link
+                                                    href={appeals({
+                                                        query: {
+                                                            row: visibleAppeal.id,
+                                                        },
+                                                    })}
+                                                >
+                                                    Открыть
+                                                </Link>
+                                            </Button>
+                                            <Button
+                                                type="button"
+                                                variant="ghost"
+                                                size="icon"
+                                                className="size-7 shrink-0 rounded-full text-muted-foreground hover:text-foreground"
+                                                aria-label="Скрыть подсказку об обращении"
+                                                onClick={() =>
+                                                    patchBannerDismiss(
+                                                        activeConversationId,
+                                                        {
+                                                            appeal: visibleAppeal.id,
+                                                        },
+                                                    )
+                                                }
+                                            >
+                                                <X className="size-3.5" />
+                                            </Button>
+                                        </div>
+                                    ) : null}
+                                    {visibleOrder ? (
+                                        <div
+                                            className={cn(
+                                                'flex min-w-0 flex-1 items-center gap-2 rounded-lg border border-sky-500/25 bg-sky-500/[0.07] px-2.5 py-1.5 dark:border-sky-400/20 dark:bg-sky-400/[0.08]',
+                                            )}
+                                        >
+                                            <FileText
+                                                className="size-3.5 shrink-0 text-sky-700/80 dark:text-sky-300/90"
+                                                aria-hidden
+                                            />
+                                            <div className="min-w-0 flex-1">
+                                                <p className="text-xs font-medium text-foreground">
+                                                    Последняя заявка
+                                                </p>
+                                                {visibleOrder.summary ? (
+                                                    <p className="truncate text-[11px] text-muted-foreground">
+                                                        {visibleOrder.summary}
+                                                    </p>
+                                                ) : null}
+                                            </div>
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                className="h-7 shrink-0 px-2 text-xs"
+                                                asChild
+                                            >
+                                                <Link
+                                                    href={order({
+                                                        query: {
+                                                            row: visibleOrder.id,
+                                                        },
+                                                    })}
+                                                >
+                                                    Открыть
+                                                </Link>
+                                            </Button>
+                                            <Button
+                                                type="button"
+                                                variant="ghost"
+                                                size="icon"
+                                                className="size-7 shrink-0 rounded-full text-muted-foreground hover:text-foreground"
+                                                aria-label="Скрыть подсказку о заявке"
+                                                onClick={() =>
+                                                    patchBannerDismiss(
+                                                        activeConversationId,
+                                                        {
+                                                            order: visibleOrder.id,
+                                                        },
+                                                    )
+                                                }
+                                            >
+                                                <X className="size-3.5" />
+                                            </Button>
+                                        </div>
+                                    ) : null}
+                                </div>
+                            </div>
+                        ) : null}
 
                         <ScrollArea className="relative min-h-0 flex-1 bg-neutral-50/40 dark:bg-neutral-950/40">
                             <div className="flex flex-col gap-3 p-4">

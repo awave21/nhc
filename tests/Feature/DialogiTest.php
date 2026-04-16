@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Http;
 use Inertia\Testing\AssertableInertia as Assert;
@@ -36,6 +37,8 @@ class DialogiTest extends TestCase
     {
         Http::fake([
             'https://supabase.test/rest/v1/dialogs*' => Http::response([], 200),
+            'https://supabase.test/rest/v1/escalation_message*' => Http::response([], 200),
+            'https://supabase.test/rest/v1/event_registrations*' => Http::response([], 200),
         ]);
 
         $user = User::factory()->create();
@@ -71,6 +74,8 @@ class DialogiTest extends TestCase
                     'content' => 'Здравствуйте, я Виктория.',
                 ],
             ], 200),
+            'https://supabase.test/rest/v1/escalation_message*' => Http::response([], 200),
+            'https://supabase.test/rest/v1/event_registrations*' => Http::response([], 200),
         ]);
 
         $user = User::factory()->create();
@@ -93,6 +98,7 @@ class DialogiTest extends TestCase
             ->where('loadError', null)
             ->where('dialogsTruncated', false)
             ->where('dialogsNextOffset', 2)
+            ->has('threadContextByConversation')
         );
     }
 
@@ -117,6 +123,8 @@ class DialogiTest extends TestCase
                     'content' => 'Чат B',
                 ],
             ], 200),
+            'https://supabase.test/rest/v1/escalation_message*' => Http::response([], 200),
+            'https://supabase.test/rest/v1/event_registrations*' => Http::response([], 200),
         ]);
 
         $user = User::factory()->create();
@@ -169,8 +177,14 @@ class DialogiTest extends TestCase
             ],
         ];
 
-        Http::fake(function (\Illuminate\Http\Client\Request $request) use ($rows) {
-            $query = (string) parse_url($request->url(), PHP_URL_QUERY);
+        Http::fake(function (Request $request) use ($rows) {
+            $url = $request->url();
+
+            if (! str_contains($url, 'rest/v1/dialogs')) {
+                return Http::response([], 200);
+            }
+
+            $query = (string) parse_url($url, PHP_URL_QUERY);
             parse_str($query, $params);
             $offset = (int) ($params['offset'] ?? 0);
 
@@ -218,6 +232,8 @@ class DialogiTest extends TestCase
                     'content' => $longBody,
                 ],
             ], 200),
+            'https://supabase.test/rest/v1/escalation_message*' => Http::response([], 200),
+            'https://supabase.test/rest/v1/event_registrations*' => Http::response([], 200),
         ]);
 
         $user = User::factory()->create();
@@ -287,6 +303,60 @@ class DialogiTest extends TestCase
             ->where('loadError', fn ($value): bool => is_string($value) && $value !== '')
             ->where('dialogsTruncated', false)
             ->where('dialogsNextOffset', 0)
+            ->where('threadContextByConversation', [])
+        );
+    }
+
+    public function test_dialogi_includes_thread_context_for_matching_supabase_rows(): void
+    {
+        Http::fake([
+            'https://supabase.test/rest/v1/dialogs*' => Http::response([
+                [
+                    'id' => '1',
+                    'tg_chat_id' => 42,
+                    'tg_username' => 'ctx_user',
+                    'created_at' => '2026-04-01T10:00:00+00:00',
+                    'sender' => 'user',
+                    'content' => 'Привет',
+                ],
+            ], 200),
+            'https://supabase.test/rest/v1/escalation_message*' => Http::response([
+                [
+                    'id' => 'esc_old',
+                    'tg_chat_id' => 42,
+                    'created_at' => '2026-04-01T09:00:00+00:00',
+                    'message' => 'Старое обращение',
+                ],
+                [
+                    'id' => 'esc_new',
+                    'tg_chat_id' => 42,
+                    'created_at' => '2026-04-01T12:00:00+00:00',
+                    'message' => 'Актуальное обращение',
+                ],
+            ], 200),
+            'https://supabase.test/rest/v1/event_registrations*' => Http::response([
+                [
+                    'id' => 'reg_1',
+                    'tg_chat_id' => 42,
+                    'created_at' => '2026-04-01T11:30:00+00:00',
+                    'status' => 'paid',
+                ],
+            ], 200),
+        ]);
+
+        $user = User::factory()->create();
+        $this->actingAs($user);
+
+        $response = $this->get(route('dialogi'));
+
+        $response->assertOk();
+        $response->assertInertia(fn (Assert $page) => $page
+            ->component('dialogi')
+            ->has('threadContextByConversation.42')
+            ->where('threadContextByConversation.42.latestAppeal.id', 'esc_new')
+            ->where('threadContextByConversation.42.latestAppeal.summary', 'Актуальное обращение')
+            ->where('threadContextByConversation.42.latestOrder.id', 'reg_1')
+            ->where('threadContextByConversation.42.latestOrder.summary', 'paid')
         );
     }
 }

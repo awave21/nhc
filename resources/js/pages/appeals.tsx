@@ -1,6 +1,6 @@
-import { Head, Link } from '@inertiajs/react';
+import { Head, Link, usePage } from '@inertiajs/react';
 import { ArrowDown, ArrowUp, ArrowUpDown, Search } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -35,6 +35,16 @@ function formatCell(value: unknown): string {
     }
 
     return String(value);
+}
+
+function rowPrimaryId(row: Record<string, unknown>): string {
+    const v = row['id'];
+
+    if (v === null || v === undefined) {
+        return '';
+    }
+
+    return String(v);
 }
 
 function rowSearchBlob(row: Record<string, unknown>, columns: string[]): string {
@@ -128,9 +138,24 @@ export default function Appeals({
     dialogLinkColumn,
     dialogLinkMatch,
 }: AppealsPageProps) {
+    const page = usePage<AppealsPageProps>();
+    const highlightRef = useRef<HTMLTableRowElement>(null);
     const [search, setSearch] = useState('');
     const [sortKey, setSortKey] = useState<string | null>(null);
     const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+
+    const highlightRowId = useMemo(() => {
+        try {
+            return new URL(
+                page.url,
+                typeof window !== 'undefined'
+                    ? window.location.origin
+                    : 'http://localhost',
+            ).searchParams.get('row');
+        } catch {
+            return null;
+        }
+    }, [page.url]);
 
     const q = search.trim().toLowerCase();
 
@@ -159,6 +184,17 @@ export default function Appeals({
 
         return next;
     }, [filtered, sortKey, sortDir, columns]);
+
+    useEffect(() => {
+        if (!highlightRowId || !highlightRef.current) {
+            return;
+        }
+
+        highlightRef.current.scrollIntoView({
+            block: 'center',
+            behavior: 'smooth',
+        });
+    }, [highlightRowId, sorted]);
 
     const toggleSort = (key: string) => {
         if (sortKey !== key) {
@@ -253,9 +289,25 @@ export default function Appeals({
                                     dialogLinkColumn,
                                     dialogLinkMatch,
                                 );
+                                const rid = rowPrimaryId(row);
+                                const isHighlighted =
+                                    highlightRowId !== null &&
+                                    rid !== '' &&
+                                    rid === highlightRowId;
 
                                 return (
-                                    <TableRow key={idx}>
+                                    <TableRow
+                                        key={idx}
+                                        ref={
+                                            isHighlighted
+                                                ? highlightRef
+                                                : undefined
+                                        }
+                                        className={cn(
+                                            isHighlighted &&
+                                                'bg-primary/10 ring-2 ring-primary/25 ring-inset',
+                                        )}
+                                    >
                                         {columns.map((col) => (
                                             <TableCell
                                                 key={col}
