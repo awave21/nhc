@@ -34,6 +34,8 @@ RUN chmod +x /usr/local/bin/entrypoint.sh \
     && mkdir -p /run/nginx /var/log/supervisor \
     && chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache
 
+# Coolify: в UI задайте «Ports Exposes» = 8080 (совпадает с listen в docker/nginx.conf).
+# Иначе прокси может смотреть на другой порт (например 3000 от старого Nixpacks-плана).
 EXPOSE 8080
 
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
