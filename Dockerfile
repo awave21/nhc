@@ -7,11 +7,11 @@ RUN composer install --no-dev --no-interaction --prefer-dist --optimize-autoload
 FROM node:22-alpine AS frontend_build
 
 WORKDIR /app
-COPY package.json package-lock.json ./
+RUN apk add --no-cache php84 php84-phar php84-openssl php84-mbstring php84-tokenizer php84-ctype php84-session php84-fileinfo php84-dom php84-xml php84-xmlwriter php84-simplexml \
+    && ln -sf /usr/bin/php84 /usr/bin/php
+COPY . .
+COPY --from=composer_deps /app/vendor ./vendor
 RUN npm ci
-COPY resources ./resources
-COPY public ./public
-COPY vite.config.ts tsconfig.json ./
 RUN npm run build
 
 FROM php:8.4-fpm-alpine AS runtime
