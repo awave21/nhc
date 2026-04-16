@@ -14,7 +14,6 @@ import {
     MessageSquareDot,
     Mic,
     Paperclip,
-    Phone,
     Search,
     Send,
     Smile,
@@ -23,10 +22,9 @@ import {
     User,
     UserRound,
     Users,
-    Video,
     X,
 } from 'lucide-react';
-import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import React, { useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 import { ChatMessageMarkdown } from '@/components/chat-message-markdown';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -49,10 +47,10 @@ import {
 } from '@/components/ui/resizable';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { compareDialogiInstants } from '@/lib/compare-dialogi-instants';
+import type { DialogiBannerDismissed } from '@/lib/dialogi-thread-banner-storage';
 import {
     readDialogiBannerDismissed,
     writeDialogiBannerDismissed,
-    type DialogiBannerDismissed,
 } from '@/lib/dialogi-thread-banner-storage';
 import { formatChatMessageTime } from '@/lib/format-chat-message-time';
 import { cn } from '@/lib/utils';
@@ -100,19 +98,19 @@ function resolveInitialThreadId(
         return '_default';
     }
 
+    if (
+        initialConversationId &&
+        list.some((c) => c.id === String(initialConversationId))
+    ) {
+        return String(initialConversationId);
+    }
+
     if (initialUsername) {
         const byName = conversationIdForUsername(list, initialUsername);
 
         if (byName) {
             return byName;
         }
-    }
-
-    if (
-        initialConversationId &&
-        list.some((c) => c.id === String(initialConversationId))
-    ) {
-        return String(initialConversationId);
     }
 
     return list[0].id;
@@ -155,18 +153,24 @@ export const Home = ({
     initialUsername = null,
     threadContextByConversation = {},
 }: ChatTemplateProps) => {
-    const [selectedId, setSelectedId] = useState(() =>
-        resolveInitialThreadId(
-            conversations,
-            initialConversationId,
-            initialUsername,
-        ),
+    const requestedSelectionKey = `${initialConversationId ?? ''}:${initialUsername ?? ''}`;
+    const requestedConversationId = useMemo(
+        () =>
+            resolveInitialThreadId(
+                conversations,
+                initialConversationId,
+                initialUsername,
+            ),
+        [conversations, initialConversationId, initialUsername],
     );
+    const [manualSelection, setManualSelection] = useState<{
+        requestedSelectionKey: string;
+        id: string;
+    } | null>(null);
     const [search, setSearch] = useState('');
     const [bannerDismissed, setBannerDismissed] =
         useState<DialogiBannerDismissed>(readDialogiBannerDismissed);
     const threadEndRef = useRef<HTMLDivElement>(null);
-    const appliedInitialFromUrl = useRef(false);
 
     const patchBannerDismiss = (
         conversationId: string,
@@ -183,42 +187,22 @@ export const Home = ({
         });
     };
 
-    useEffect(() => {
-        if (conversations.length === 0) {
-            return;
-        }
-
-        if (!initialConversationId && !initialUsername) {
-            appliedInitialFromUrl.current = true;
-
-            return;
-        }
-
-        if (appliedInitialFromUrl.current) {
-            return;
-        }
-
-        const next = resolveInitialThreadId(
-            conversations,
-            initialConversationId,
-            initialUsername,
-        );
-
-        setSelectedId(next);
-        appliedInitialFromUrl.current = true;
-    }, [conversations, initialConversationId, initialUsername]);
-
     const activeConversationId = useMemo((): string => {
         if (conversations.length === 0) {
             return '_default';
         }
+
+        const selectedId =
+            manualSelection?.requestedSelectionKey === requestedSelectionKey
+                ? manualSelection.id
+                : requestedConversationId;
 
         if (conversations.some((c) => c.id === selectedId)) {
             return selectedId;
         }
 
         return conversations[0].id;
-    }, [conversations, selectedId]);
+    }, [conversations, manualSelection, requestedConversationId, requestedSelectionKey]);
 
     const filteredConversations = useMemo(() => {
         const q = search.trim().toLowerCase();
@@ -414,7 +398,10 @@ export const Home = ({
                                             key={contact.id}
                                             type="button"
                                             onClick={() =>
-                                                setSelectedId(contact.id)
+                                                setManualSelection({
+                                                    requestedSelectionKey,
+                                                    id: contact.id,
+                                                })
                                             }
                                             className={cn(
                                                 'flex w-full min-w-0 overflow-hidden rounded-xl px-3 py-2.5 text-left transition-[background-color,box-shadow]',
@@ -515,20 +502,6 @@ export const Home = ({
                                 </p>
                             </div>
                             <div className="flex shrink-0 items-center gap-0.5">
-                                <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="rounded-full text-muted-foreground hover:text-foreground"
-                                >
-                                    <Video className="size-4" />
-                                </Button>
-                                <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="rounded-full text-muted-foreground hover:text-foreground"
-                                >
-                                    <Phone className="size-4" />
-                                </Button>
                                 <Button
                                     variant="ghost"
                                     size="icon"
@@ -717,10 +690,19 @@ export const Home = ({
                         </ScrollArea>
 
                         <div className="shrink-0 border-t border-sidebar-border/50 bg-background/95 px-3 py-3 backdrop-blur-sm dark:border-sidebar-border/80">
-                            <div className="flex items-center gap-1 rounded-2xl border border-sidebar-border/60 bg-neutral-50/50 p-1.5 dark:border-sidebar-border dark:bg-neutral-900/40">
+                            <div
+                                className={cn(
+                                    'flex items-center gap-1 rounded-2xl border border-sidebar-border/60 bg-neutral-50/50 p-1.5 dark:border-sidebar-border dark:bg-neutral-900/40',
+                                    'pointer-events-none opacity-60',
+                                )}
+                                aria-disabled="true"
+                                title="Отправка сообщений пока недоступна"
+                            >
                                 <Button
                                     variant="ghost"
                                     size="icon"
+                                    type="button"
+                                    disabled
                                     className="size-9 shrink-0 rounded-full text-muted-foreground hover:text-foreground"
                                 >
                                     <Smile className="size-4" />
@@ -730,6 +712,8 @@ export const Home = ({
                                         <Button
                                             variant="ghost"
                                             size="icon"
+                                            type="button"
+                                            disabled
                                             className="size-9 shrink-0 rounded-full text-muted-foreground hover:text-foreground"
                                         >
                                             <Paperclip className="size-4" />
@@ -760,12 +744,16 @@ export const Home = ({
                                     </DropdownMenuContent>
                                 </DropdownMenu>
                                 <Input
+                                    disabled
+                                    readOnly
                                     className="min-w-0 flex-1 border-0 bg-transparent shadow-none focus-visible:ring-0 dark:bg-transparent"
-                                    placeholder="Сообщение…"
+                                    placeholder="Отправка сообщений недоступна"
                                 />
                                 <Button
                                     variant="default"
                                     size="icon"
+                                    type="button"
+                                    disabled
                                     className="size-9 shrink-0 rounded-full"
                                 >
                                     <Send className="size-4" />
@@ -773,6 +761,8 @@ export const Home = ({
                                 <Button
                                     variant="ghost"
                                     size="icon"
+                                    type="button"
+                                    disabled
                                     className="size-9 shrink-0 rounded-full text-muted-foreground hover:text-foreground"
                                 >
                                     <Mic className="size-4" />

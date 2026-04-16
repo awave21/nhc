@@ -53,6 +53,29 @@ class DialogiTest extends TestCase
         );
     }
 
+    public function test_dialogi_passes_both_query_identifiers_to_the_page(): void
+    {
+        Http::fake([
+            'https://supabase.test/rest/v1/dialogs*' => Http::response([], 200),
+            'https://supabase.test/rest/v1/escalation_message*' => Http::response([], 200),
+            'https://supabase.test/rest/v1/event_registrations*' => Http::response([], 200),
+        ]);
+
+        $user = User::factory()->create();
+        $this->actingAs($user);
+
+        $response = $this->get(route('dialogi', [
+            'conversation' => '42',
+            'username' => 'ivan_nhc',
+        ]));
+
+        $response->assertOk();
+        $response->assertInertia(fn (Assert $page) => $page
+            ->where('initialConversationId', '42')
+            ->where('initialUsername', 'ivan_nhc')
+        );
+    }
+
     public function test_authenticated_verified_users_can_visit_dialogi(): void
     {
         Http::fake([

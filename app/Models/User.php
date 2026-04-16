@@ -18,6 +18,8 @@ class User extends Authenticatable
     /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable, TwoFactorAuthenticatable;
 
+    protected $table = 'app_users';
+
     /**
      * Get the attributes that should be cast.
      *

@@ -1,10 +1,16 @@
-import { Head, Link, usePage } from '@inertiajs/react';
+import { Head, Link, router, usePage } from '@inertiajs/react';
 import { ArrowDown, ArrowUp, ArrowUpDown, Search } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import {
+    Sheet,
+    SheetContent,
+    SheetHeader,
+    SheetTitle,
+} from '@/components/ui/sheet';
 import {
     Table,
     TableBody,
@@ -13,8 +19,8 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
-import { appeals as appealsRoute, dialogi } from '@/routes';
 import { cn } from '@/lib/utils';
+import { appeals as appealsRoute, dialogi } from '@/routes';
 
 export type AppealsPageProps = {
     columns: string[];
@@ -37,6 +43,36 @@ function formatCell(value: unknown): string {
     return String(value);
 }
 
+const isoDateTimeLike = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?$/;
+
+/**
+ * Человекочитаемое отображение: ISO-даты/время → Москва (Europe/Moscow).
+ * Сортировка и поиск используют {@link formatCell} без преобразований.
+ */
+function formatDisplayCell(value: unknown): string {
+    if (typeof value !== 'string') {
+        return formatCell(value);
+    }
+
+    const trimmed = value.trim();
+
+    if (trimmed === '' || !isoDateTimeLike.test(trimmed)) {
+        return formatCell(value);
+    }
+
+    const parsed = Date.parse(trimmed);
+
+    if (Number.isNaN(parsed)) {
+        return formatCell(value);
+    }
+
+    return new Intl.DateTimeFormat('ru-RU', {
+        timeZone: 'Europe/Moscow',
+        dateStyle: 'medium',
+        timeStyle: 'short',
+    }).format(new Date(parsed));
+}
+
 function rowPrimaryId(row: Record<string, unknown>): string {
     const v = row['id'];
 
@@ -47,35 +83,98 @@ function rowPrimaryId(row: Record<string, unknown>): string {
     return String(v);
 }
 
+function normalizeTelegramUsername(value: string): string | null {
+    const trimmed = value.trim();
+
+    if (trimmed === '') {
+        return null;
+    }
+
+    const withoutAt = trimmed.startsWith('@') ? trimmed.slice(1) : trimmed;
+
+    if (!/^[a-zA-Z0-9_]{5,}$/.test(withoutAt)) {
+        return null;
+    }
+
+    return withoutAt;
+}
+
+function isTelegramUsernameColumn(column: string): boolean {
+    return [
+        'tg_username',
+        'username',
+        'telegram_username',
+        'telegram_user',
+        'user_name',
+    ].includes(column);
+}
+
+function shouldHideAppealsSheetField(column: string, value: unknown): boolean {
+    if (column.trim().toLowerCase() !== 'status') {
+        return false;
+    }
+
+    if (typeof value === 'boolean') {
+        return value === true;
+    }
+
+    if (typeof value === 'string') {
+        return value.trim().toLowerCase() === 'true';
+    }
+
+    if (typeof value === 'number') {
+        return value === 1;
+    }
+
+    return false;
+}
+
 function rowSearchBlob(row: Record<string, unknown>, columns: string[]): string {
     return columns
         .map((c) => formatCell(row[c]).toLowerCase())
         .join('\u0000');
 }
 
+function readRowQueryParamFromWindow(): string | null {
+    if (typeof window === 'undefined') {
+        return null;
+    }
+
+    try {
+        return new URL(window.location.href).searchParams.get('row');
+    } catch {
+        return null;
+    }
+}
+
 /**
  * Значение и тип query для ссылки «Диалог»:
- * сначала колонка из .env и режим, затем запасные имена полей;
+ * сначала «канонические» поля выбранного режима, затем колонка из .env как fallback;
  * если для режима ничего нет — пробуем другой идентификатор (username ↔ chat id).
  */
 function resolveDialogLink(
     row: Record<string, unknown>,
     primaryColumn: string,
     preferredMatch: 'chat_id' | 'username',
-): { raw: string; useUsernameQuery: boolean } | null {
+): { conversation?: string; username?: string } | null {
+    /**
+     * Важно: `primaryColumn` из .env может указывать не на тот тип идентификатора.
+     * Поэтому сначала пробуем «канонические» поля режима, и только затем primaryColumn
+     * (как fallback), чтобы `?conversation=` всегда предпочитал tg_chat_id и т.п.
+     */
     const usernameKeys = [
-        primaryColumn,
         'tg_username',
         'username',
         'telegram_username',
         'telegram_user',
         'user_name',
+        primaryColumn,
     ];
     const chatIdKeys = [
-        primaryColumn,
         'tg_chat_id',
         'telegram_chat_id',
         'chat_id',
+        primaryColumn,
     ];
 
     const pickFirst = (keys: string[]): unknown => {
@@ -102,29 +201,24 @@ function resolveDialogLink(
         return undefined;
     };
 
+    const conversation = pickFirst(chatIdKeys);
+    const username = pickFirst(usernameKeys);
+
     if (preferredMatch === 'username') {
-        const u = pickFirst(usernameKeys);
-
-        if (u !== undefined) {
-            return { raw: String(u), useUsernameQuery: true };
-        }
-
-        const c = pickFirst(chatIdKeys);
-
-        if (c !== undefined) {
-            return { raw: String(c), useUsernameQuery: false };
+        if (username !== undefined || conversation !== undefined) {
+            return {
+                conversation:
+                    conversation !== undefined ? String(conversation) : undefined,
+                username: username !== undefined ? String(username) : undefined,
+            };
         }
     } else {
-        const c = pickFirst(chatIdKeys);
-
-        if (c !== undefined) {
-            return { raw: String(c), useUsernameQuery: false };
-        }
-
-        const u = pickFirst(usernameKeys);
-
-        if (u !== undefined) {
-            return { raw: String(u), useUsernameQuery: true };
+        if (conversation !== undefined || username !== undefined) {
+            return {
+                conversation:
+                    conversation !== undefined ? String(conversation) : undefined,
+                username: username !== undefined ? String(username) : undefined,
+            };
         }
     }
 
@@ -143,21 +237,57 @@ export default function Appeals({
     const [search, setSearch] = useState('');
     const [sortKey, setSortKey] = useState<string | null>(null);
     const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+    const [pickedRowId, setPickedRowId] = useState<string | null>(null);
+    const [locationVersion, setLocationVersion] = useState(0);
+    /**
+     * Inertia `router.replace` обновляет URL не синхронно: до onSuccess `?row=` ещё
+     * читается из window — шит снова открывается. Флаг гасит выбор до onSuccess;
+     * сбрасываем в onSuccess при снятии `row` из URL (без setState в эффекте).
+     */
+    const [sheetSuppressUntilUrlCleared, setSheetSuppressUntilUrlCleared] =
+        useState(false);
 
     const highlightRowId = useMemo(() => {
+        void locationVersion;
+
+        if (typeof window !== 'undefined') {
+            return readRowQueryParamFromWindow();
+        }
+
         try {
-            return new URL(
-                page.url,
-                typeof window !== 'undefined'
-                    ? window.location.origin
-                    : 'http://localhost',
-            ).searchParams.get('row');
+            return new URL(page.url, 'http://localhost').searchParams.get('row');
         } catch {
             return null;
         }
-    }, [page.url]);
+    }, [page.url, locationVersion]);
 
     const q = search.trim().toLowerCase();
+    const rowsById = useMemo(() => {
+        const map = new Map<string, Record<string, unknown>>();
+
+        for (const row of rows) {
+            const rowId = rowPrimaryId(row);
+
+            if (rowId !== '') {
+                map.set(rowId, row);
+            }
+        }
+
+        return map;
+    }, [rows]);
+
+    const rowIdFromUrl = useMemo(() => {
+        if (!highlightRowId || !rowsById.has(highlightRowId)) {
+            return null;
+        }
+
+        return highlightRowId;
+    }, [highlightRowId, rowsById]);
+
+    const activeRowId =
+        sheetSuppressUntilUrlCleared && highlightRowId !== null
+            ? null
+            : (pickedRowId ?? rowIdFromUrl);
 
     const filtered = useMemo(() => {
         if (q === '') {
@@ -186,6 +316,22 @@ export default function Appeals({
     }, [filtered, sortKey, sortDir, columns]);
 
     useEffect(() => {
+        if (typeof window === 'undefined') {
+            return;
+        }
+
+        const onPopState = () => {
+            setLocationVersion((v) => v + 1);
+        };
+
+        window.addEventListener('popstate', onPopState);
+
+        return () => {
+            window.removeEventListener('popstate', onPopState);
+        };
+    }, []);
+
+    useEffect(() => {
         if (!highlightRowId || !highlightRef.current) {
             return;
         }
@@ -196,6 +342,21 @@ export default function Appeals({
         });
     }, [highlightRowId, sorted]);
 
+    const selectedRow = useMemo(() => {
+        if (!activeRowId) {
+            return null;
+        }
+
+        return rowsById.get(activeRowId) ?? null;
+    }, [rowsById, activeRowId]);
+    const selectedRowDialogLink = useMemo(() => {
+        if (!selectedRow) {
+            return null;
+        }
+
+        return resolveDialogLink(selectedRow, dialogLinkColumn, dialogLinkMatch);
+    }, [selectedRow, dialogLinkColumn, dialogLinkMatch]);
+
     const toggleSort = (key: string) => {
         if (sortKey !== key) {
             setSortKey(key);
@@ -205,6 +366,38 @@ export default function Appeals({
         }
 
         setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    };
+
+    const updateRowQueryParam = (rowId: string | null) => {
+        const nextUrl =
+            rowId === null || rowId === ''
+                ? appealsRoute.url()
+                : appealsRoute.url({ query: { row: rowId } });
+
+        const clearingRow = rowId === null || rowId === '';
+
+        router.replace({
+            url: nextUrl,
+            preserveState: true,
+            preserveScroll: true,
+            onSuccess: () => {
+                setLocationVersion((v) => v + 1);
+
+                if (clearingRow) {
+                    setSheetSuppressUntilUrlCleared(false);
+                }
+            },
+        });
+    };
+
+    const selectRow = (rowId: string) => {
+        if (rowId === '') {
+            return;
+        }
+
+        setSheetSuppressUntilUrlCleared(false);
+        setPickedRowId(rowId);
+        updateRowQueryParam(rowId);
     };
 
     const SortIcon = ({ column }: { column: string }) => {
@@ -249,7 +442,7 @@ export default function Appeals({
                 </Alert>
             ) : null}
 
-            <div className="shadow-nhc rounded-2xl border border-sidebar-border/70 bg-background dark:border-sidebar-border">
+            <div className="shadow-nhc min-w-0 overflow-x-auto rounded-2xl border border-sidebar-border/70 bg-background dark:border-sidebar-border">
                 <Table>
                     <TableHeader>
                         <TableRow>
@@ -267,16 +460,13 @@ export default function Appeals({
                                     </Button>
                                 </TableHead>
                             ))}
-                            <TableHead className="w-[120px] text-right">
-                                Диалог
-                            </TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
                         {sorted.length === 0 ? (
                             <TableRow>
                                 <TableCell
-                                    colSpan={columns.length + 1}
+                                    colSpan={columns.length}
                                     className="h-24 text-center text-muted-foreground"
                                 >
                                     Нет строк
@@ -284,16 +474,12 @@ export default function Appeals({
                             </TableRow>
                         ) : (
                             sorted.map((row, idx) => {
-                                const link = resolveDialogLink(
-                                    row,
-                                    dialogLinkColumn,
-                                    dialogLinkMatch,
-                                );
                                 const rid = rowPrimaryId(row);
                                 const isHighlighted =
                                     highlightRowId !== null &&
                                     rid !== '' &&
                                     rid === highlightRowId;
+                                const isSelected = rid !== '' && rid === activeRowId;
 
                                 return (
                                     <TableRow
@@ -304,43 +490,23 @@ export default function Appeals({
                                                 : undefined
                                         }
                                         className={cn(
+                                            'cursor-pointer',
                                             isHighlighted &&
                                                 'bg-primary/10 ring-2 ring-primary/25 ring-inset',
+                                            isSelected &&
+                                                'bg-primary/10 ring-1 ring-primary/40 ring-inset',
                                         )}
+                                        onClick={() => selectRow(rid)}
                                     >
                                         {columns.map((col) => (
                                             <TableCell
                                                 key={col}
                                                 className="max-w-[280px] truncate align-top font-mono text-xs"
-                                                title={formatCell(row[col])}
+                                                title={formatDisplayCell(row[col])}
                                             >
-                                                {formatCell(row[col])}
+                                                {formatDisplayCell(row[col])}
                                             </TableCell>
                                         ))}
-                                        <TableCell className="text-right align-top">
-                                            {link ? (
-                                                <Button variant="outline" size="sm" asChild>
-                                                    <Link
-                                                        href={dialogi({
-                                                            query: link.useUsernameQuery
-                                                                ? {
-                                                                      username: link.raw,
-                                                                  }
-                                                                : {
-                                                                      conversation:
-                                                                          link.raw,
-                                                                  },
-                                                        })}
-                                                    >
-                                                        Открыть
-                                                    </Link>
-                                                </Button>
-                                            ) : (
-                                                <span className="text-muted-foreground text-sm">
-                                                    —
-                                                </span>
-                                            )}
-                                        </TableCell>
                                     </TableRow>
                                 );
                             })
@@ -348,6 +514,118 @@ export default function Appeals({
                     </TableBody>
                 </Table>
             </div>
+
+            <Sheet
+                open={selectedRow !== null}
+                onOpenChange={(isOpen) => {
+                    if (!isOpen) {
+                        setSheetSuppressUntilUrlCleared(true);
+                        setPickedRowId(null);
+                        updateRowQueryParam(null);
+                    }
+                }}
+            >
+                <SheetContent
+                    side="right"
+                    className="flex w-full min-h-0 flex-col sm:max-w-xl"
+                >
+                    <SheetHeader>
+                        <SheetTitle>Подробная информация</SheetTitle>
+                    </SheetHeader>
+                    <div className="flex min-h-0 flex-1 flex-col px-4 pb-6">
+                        {selectedRow ? (
+                            <>
+                                <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
+                                    {columns
+                                        .filter(
+                                            (col) =>
+                                                !shouldHideAppealsSheetField(
+                                                    col,
+                                                    selectedRow[col],
+                                                ),
+                                        )
+                                        .map((col) => (
+                                        <div
+                                            key={col}
+                                            className="space-y-1 border-b border-border/60 pb-2 last:border-b-0"
+                                        >
+                                            {(() => {
+                                                const rawCell = formatCell(
+                                                    selectedRow[col],
+                                                );
+                                                const displayCell =
+                                                    formatDisplayCell(selectedRow[col]);
+                                                const tgUsername = isTelegramUsernameColumn(
+                                                    col,
+                                                )
+                                                    ? normalizeTelegramUsername(
+                                                          rawCell,
+                                                      )
+                                                    : null;
+
+                                                return (
+                                                    <>
+                                                        <p className="text-muted-foreground text-xs font-medium">
+                                                            {col}
+                                                        </p>
+                                                        <p className="break-words font-mono text-xs">
+                                                            {tgUsername ? (
+                                                                <a
+                                                                    href={`https://t.me/${tgUsername}`}
+                                                                    target="_blank"
+                                                                    rel="noopener noreferrer"
+                                                                    className="text-primary underline underline-offset-2"
+                                                                >
+                                                                    {rawCell}
+                                                                </a>
+                                                            ) : (
+                                                                displayCell || '—'
+                                                            )}
+                                                        </p>
+                                                    </>
+                                                );
+                                            })()}
+                                        </div>
+                                    ))}
+                                </div>
+                                <div className="mt-auto shrink-0 border-t border-border/60 pt-4">
+                                    {selectedRowDialogLink ? (
+                                        <div className="flex justify-center">
+                                            <Button asChild className="w-1/2">
+                                                <Link
+                                                    href={dialogi({
+                                                        query: {
+                                                            ...(selectedRowDialogLink.conversation
+                                                                ? {
+                                                                      conversation:
+                                                                          selectedRowDialogLink.conversation,
+                                                                  }
+                                                                : {}),
+                                                            ...(selectedRowDialogLink.username
+                                                                ? {
+                                                                      username:
+                                                                          selectedRowDialogLink.username,
+                                                                  }
+                                                                : {}),
+                                                        },
+                                                    })}
+                                                >
+                                                    Открыть диалог
+                                                </Link>
+                                            </Button>
+                                        </div>
+                                    ) : (
+                                        <p className="text-muted-foreground text-center text-sm">
+                                            Для этой записи не найден идентификатор
+                                            диалога.
+                                        </p>
+                                    )}
+                                </div>
+                            </>
+                        ) : null}
+                    </div>
+                </SheetContent>
+            </Sheet>
         </div>
     );
 }

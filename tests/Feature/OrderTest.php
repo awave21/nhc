@@ -20,6 +20,8 @@ class OrderTest extends TestCase
         Config::set('supabase.url', 'https://supabase.test');
         Config::set('supabase.client_anon_key', 'test-anon-key');
         Config::set('supabase.event_registrations.table', 'event_registrations');
+        Config::set('supabase.event_registrations.dialog_link_column', 'tg_chat_id');
+        Config::set('supabase.event_registrations.dialog_link_match', 'chat_id');
     }
 
     public function test_guests_are_redirected_to_login_from_order(): void

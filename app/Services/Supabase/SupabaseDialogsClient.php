@@ -2,7 +2,10 @@
 
 namespace App\Services\Supabase;
 
+use App\Models\Supabase\DialogRow;
 use App\Models\User;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -21,6 +24,10 @@ class SupabaseDialogsClient
      */
     public function fetchRows(?User $user): array
     {
+        if ($this->usesDatabaseDriver()) {
+            return $this->fetchRowsFromDatabase($user);
+        }
+
         $maxBatches = max(1, (int) config('supabase.dialogs.fetch_max_batches', 500));
         $batchSize = max(1, (int) config('supabase.dialogs.fetch_batch_size', 1000));
 
@@ -67,6 +74,10 @@ class SupabaseDialogsClient
      */
     public function fetchRowsBatched(?User $user, int $startOffset, int $maxBatches): array
     {
+        if ($this->usesDatabaseDriver()) {
+            return $this->fetchRowsBatchedFromDatabase($user, $startOffset, $maxBatches);
+        }
+
         $setup = $this->validateAndBuildUrl($user);
 
         if ($setup === null) {
@@ -147,6 +158,10 @@ class SupabaseDialogsClient
      */
     public function fetchChunkAtOffset(?User $user, int $offset): array
     {
+        if ($this->usesDatabaseDriver()) {
+            return $this->fetchChunkAtOffsetFromDatabase($user, $offset);
+        }
+
         $setup = $this->validateAndBuildUrl($user);
 
         if ($setup === null) {
@@ -282,5 +297,174 @@ class SupabaseDialogsClient
             'rows' => $json,
             'error' => null,
         ];
+    }
+
+    private function usesDatabaseDriver(): bool
+    {
+        return strtolower((string) config('supabase.driver', 'postgrest')) === 'database';
+    }
+
+    /**
+     * @return array{
+     *     ok: bool,
+     *     rows: array<int, array<string, mixed>>,
+     *     error: ?string,
+     *     truncated: bool,
+     *     next_offset: int
+     * }
+     */
+    private function fetchRowsFromDatabase(?User $user): array
+    {
+        $maxBatches = max(1, (int) config('supabase.dialogs.fetch_max_batches', 500));
+
+        $result = $this->fetchRowsBatchedFromDatabase($user, 0, $maxBatches);
+
+        if (! $result['ok']) {
+            return [
+                'ok' => false,
+                'rows' => [],
+                'error' => $result['error'],
+                'truncated' => false,
+                'next_offset' => 0,
+            ];
+        }
+
+        return [
+            'ok' => true,
+            'rows' => $result['rows'],
+            'error' => null,
+            'truncated' => $result['truncated'],
+            'next_offset' => $result['next_offset'],
+        ];
+    }
+
+    /**
+     * @return array{
+     *     ok: bool,
+     *     rows: array<int, array<string, mixed>>,
+     *     error: ?string,
+     *     next_offset: int,
+     *     has_more: bool,
+     *     truncated: bool
+     * }
+     */
+    private function fetchRowsBatchedFromDatabase(?User $user, int $startOffset, int $maxBatches): array
+    {
+        $batchSize = max(1, (int) config('supabase.dialogs.fetch_batch_size', 1000));
+        $offset = max(0, $startOffset);
+        $rows = [];
+        $truncated = false;
+
+        try {
+            for ($batchIndex = 0; $batchIndex < $maxBatches; $batchIndex++) {
+                $chunk = $this->buildDatabaseQuery($user)
+                    ->offset($offset)
+                    ->limit($batchSize)
+                    ->get()
+                    ->map(fn (DialogRow $row): array => $row->attributesToArray())
+                    ->all();
+
+                if ($chunk === []) {
+                    break;
+                }
+
+                $rows = array_merge($rows, $chunk);
+                $chunkCount = count($chunk);
+                $offset += $chunkCount;
+
+                if ($chunkCount < $batchSize) {
+                    break;
+                }
+
+                if ($batchIndex === $maxBatches - 1) {
+                    $truncated = true;
+                }
+            }
+        } catch (QueryException $exception) {
+            Log::warning('supabase.dialogs.database_query_failed', [
+                'message' => $exception->getMessage(),
+            ]);
+
+            return [
+                'ok' => false,
+                'rows' => [],
+                'error' => 'Не удалось загрузить диалоги из базы данных.',
+                'next_offset' => $offset,
+                'has_more' => false,
+                'truncated' => false,
+            ];
+        }
+
+        return [
+            'ok' => true,
+            'rows' => $rows,
+            'error' => null,
+            'next_offset' => $offset,
+            'has_more' => $truncated,
+            'truncated' => $truncated,
+        ];
+    }
+
+    /**
+     * @return array{
+     *     ok: bool,
+     *     rows: array<int, array<string, mixed>>,
+     *     error: ?string,
+     *     next_offset: int,
+     *     has_more: bool
+     * }
+     */
+    private function fetchChunkAtOffsetFromDatabase(?User $user, int $offset): array
+    {
+        $batchSize = max(1, (int) config('supabase.dialogs.fetch_batch_size', 1000));
+        $safeOffset = max(0, $offset);
+
+        try {
+            $chunk = $this->buildDatabaseQuery($user)
+                ->offset($safeOffset)
+                ->limit($batchSize)
+                ->get()
+                ->map(fn (DialogRow $row): array => $row->attributesToArray())
+                ->all();
+        } catch (QueryException $exception) {
+            Log::warning('supabase.dialogs.database_query_failed', [
+                'message' => $exception->getMessage(),
+            ]);
+
+            return [
+                'ok' => false,
+                'rows' => [],
+                'error' => 'Не удалось загрузить диалоги из базы данных.',
+                'next_offset' => $safeOffset,
+                'has_more' => false,
+            ];
+        }
+
+        $count = count($chunk);
+
+        return [
+            'ok' => true,
+            'rows' => $chunk,
+            'error' => null,
+            'next_offset' => $safeOffset + $count,
+            'has_more' => $count === $batchSize,
+        ];
+    }
+
+    private function buildDatabaseQuery(?User $user): Builder
+    {
+        $createdAtColumn = (string) config('supabase.dialogs.column_map.created_at', 'created_at');
+
+        $query = DialogRow::query()->orderBy($createdAtColumn, $this->fetchOrderDirection());
+
+        if (config('supabase.dialogs.scope_to_user') && $user !== null) {
+            $column = (string) config('supabase.dialogs.user_id_column');
+
+            if ($column !== '') {
+                $query->where($column, $user->getAuthIdentifier());
+            }
+        }
+
+        return $query;
     }
 }

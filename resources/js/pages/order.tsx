@@ -13,8 +13,8 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
-import { dialogi, order as orderRoute } from '@/routes';
 import { cn } from '@/lib/utils';
+import { dialogi, order as orderRoute } from '@/routes';
 
 export type OrderPageProps = {
     columns: string[];
@@ -55,27 +55,32 @@ function rowSearchBlob(row: Record<string, unknown>, columns: string[]): string 
 
 /**
  * Значение и тип query для ссылки «Диалог»:
- * сначала колонка из .env и режим, затем запасные имена полей;
+ * сначала «канонические» поля выбранного режима, затем колонка из .env как fallback;
  * если для режима ничего нет — пробуем другой идентификатор (username ↔ chat id).
  */
 function resolveDialogLink(
     row: Record<string, unknown>,
     primaryColumn: string,
     preferredMatch: 'chat_id' | 'username',
-): { raw: string; useUsernameQuery: boolean } | null {
+): { conversation?: string; username?: string } | null {
+    /**
+     * Важно: `primaryColumn` из .env может указывать не на тот тип идентификатора.
+     * Поэтому сначала пробуем «канонические» поля режима, и только затем primaryColumn
+     * (как fallback), чтобы `?conversation=` всегда предпочитал tg_chat_id и т.п.
+     */
     const usernameKeys = [
-        primaryColumn,
         'tg_username',
         'username',
         'telegram_username',
         'telegram_user',
         'user_name',
+        primaryColumn,
     ];
     const chatIdKeys = [
-        primaryColumn,
         'tg_chat_id',
         'telegram_chat_id',
         'chat_id',
+        primaryColumn,
     ];
 
     const pickFirst = (keys: string[]): unknown => {
@@ -102,29 +107,24 @@ function resolveDialogLink(
         return undefined;
     };
 
+    const conversation = pickFirst(chatIdKeys);
+    const username = pickFirst(usernameKeys);
+
     if (preferredMatch === 'username') {
-        const u = pickFirst(usernameKeys);
-
-        if (u !== undefined) {
-            return { raw: String(u), useUsernameQuery: true };
-        }
-
-        const c = pickFirst(chatIdKeys);
-
-        if (c !== undefined) {
-            return { raw: String(c), useUsernameQuery: false };
+        if (username !== undefined || conversation !== undefined) {
+            return {
+                conversation:
+                    conversation !== undefined ? String(conversation) : undefined,
+                username: username !== undefined ? String(username) : undefined,
+            };
         }
     } else {
-        const c = pickFirst(chatIdKeys);
-
-        if (c !== undefined) {
-            return { raw: String(c), useUsernameQuery: false };
-        }
-
-        const u = pickFirst(usernameKeys);
-
-        if (u !== undefined) {
-            return { raw: String(u), useUsernameQuery: true };
+        if (conversation !== undefined || username !== undefined) {
+            return {
+                conversation:
+                    conversation !== undefined ? String(conversation) : undefined,
+                username: username !== undefined ? String(username) : undefined,
+            };
         }
     }
 
@@ -322,14 +322,20 @@ export default function Order({
                                                 <Button variant="outline" size="sm" asChild>
                                                     <Link
                                                         href={dialogi({
-                                                            query: link.useUsernameQuery
-                                                                ? {
-                                                                      username: link.raw,
-                                                                  }
-                                                                : {
-                                                                      conversation:
-                                                                          link.raw,
-                                                                  },
+                                                            query: {
+                                                                ...(link.conversation
+                                                                    ? {
+                                                                          conversation:
+                                                                              link.conversation,
+                                                                      }
+                                                                    : {}),
+                                                                ...(link.username
+                                                                    ? {
+                                                                          username:
+                                                                              link.username,
+                                                                      }
+                                                                    : {}),
+                                                            },
                                                         })}
                                                     >
                                                         Открыть
