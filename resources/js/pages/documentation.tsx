@@ -1,0 +1,1900 @@
+import { Head, router, usePage } from '@inertiajs/react';
+import {
+    ChevronDown,
+    ChevronRight,
+    ClipboardList,
+    Clock,
+    Database,
+    ExternalLink,
+    Info,
+    LibraryBig,
+    MessageCircle,
+    MessageSquareWarning,
+    NotebookPen,
+    Server,
+    Workflow,
+} from 'lucide-react';
+import type { FormEvent, ReactNode } from 'react';
+import { useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Input } from '@/components/ui/input';
+import {
+    SidebarGroup,
+    SidebarGroupLabel,
+    SidebarMenu,
+    SidebarMenuButton,
+    SidebarMenuItem,
+} from '@/components/ui/sidebar';
+import { documentation } from '@/routes';
+import documentationUnlockRoutes from '@/routes/documentation';
+
+// ─── Types ───────────────────────────────────────────────────────────────────
+
+type TableField = {
+    name: string;
+    type: string;
+    description: string;
+};
+
+type TableDoc = {
+    name: string;
+    envKey: string;
+    description: string;
+    fields: TableField[];
+    notes?: string[];
+};
+
+type TableSection = {
+    id: string;
+    title: string;
+    icon: React.ElementType;
+    description: string;
+    tables: TableDoc[];
+};
+
+type WorkflowDetailBlock =
+    | { type: 'h3'; text: string }
+    | { type: 'p'; text: string }
+    | { type: 'ul'; items: string[] }
+    | { type: 'table'; headers: string[]; rows: string[][] }
+    | { type: 'code'; text: string };
+
+type WorkflowDoc = {
+    name: string;
+    trigger: string;
+    description: string;
+    steps: string[];
+    /** Подробное описание сценария (узлы n8n, маршруты, таблицы) */
+    detailBlocks?: WorkflowDetailBlock[];
+    /** Одна ссылка на сценарий в n8n */
+    workflowUrl?: string;
+    /** Несколько ссылок (под-сценарии); если задано, показывается вместо одной workflowUrl */
+    workflowLinks?: { href: string; label: string }[];
+};
+
+type WorkflowSection = {
+    id: string;
+    title: string;
+    icon: React.ElementType;
+    description: string;
+    workflows: WorkflowDoc[];
+};
+
+type DocPage = {
+    id: string;
+    title: string;
+    icon: React.ElementType;
+    content: TablePageContent | WorkflowPageContent | OverviewPageContent;
+};
+
+type TablePageContent = { type: 'tables'; sections: TableSection[] };
+type WorkflowPageContent = { type: 'workflows'; sections: WorkflowSection[] };
+type OverviewPageContent = { type: 'overview'; blocks: WorkflowDetailBlock[] };
+
+// ─── Data ────────────────────────────────────────────────────────────────────
+
+const pages: DocPage[] = [
+    {
+        id: 'overview',
+        title: 'Общие сведения о проекте',
+        icon: Info,
+        content: {
+            type: 'overview',
+            blocks: [
+                {
+                    type: 'h3',
+                    text: 'ИИ-ассистент «Виктория»',
+                },
+                {
+                    type: 'p',
+                    text: '«Виктория» — Telegram-бот службы заботы Академии NHC: общается с клиентами в личных чатах от имени команды, помогает с информацией о программах и ретритах, собирает заявки и контакты, при необходимости выдаёт ссылки на оплату и передаёт сложные случаи людям. Технически это большой сценарий в n8n: входящие сообщения из Telegram проходят через ИИ-модели (ответы агента дублируются в базу как переписка). Эта админ-панель (nhc-admin) не заменяет чат — она даёт сотрудникам обзор данных: диалоги, заявки, обращения и заметки.',
+                },
+                {
+                    type: 'h3',
+                    text: 'Как это работает',
+                },
+                {
+                    type: 'ul',
+                    items: [
+                        'Пользователь пишет боту в Telegram; n8n принимает webhook-событие, при необходимости загружает контекст о человеке (история участия, платежи и т.д.) и короткую память последних реплик.',
+                        'ИИ-агент формулирует ответ с учётом контекста и может вызывать инструменты: база знаний LightRAG (инструмент VECTOR — поиск по FAQ), проекты и тарифы, оформление заявки (order), выставление оплаты (PAYMENT_LINK / эквайринг), эскалация куратору (escalation), сохранение заметки о человеке (user_profile). Сами тексты FAQ поддерживаются в Notion и синхронизируются в LightRAG отдельным сценарием n8n.',
+                        'Каждая реплика пользователя и ответ агента сохраняются в таблице dialogs в Supabase — это и есть «диалоги», которые вы видите в разделе «Диалоги».',
+                        'Отдельные сценарии по расписанию обрабатывают очередь эскалаций для кураторов и при необходимости отправляют мягкие напоминания («фоллоу-ап»), если пользователь долго не отвечает после сообщения агента.',
+                    ],
+                },
+                {
+                    type: 'h3',
+                    text: 'Что умеет Виктория (возможности)',
+                },
+                {
+                    type: 'ul',
+                    items: [
+                        'Вести осмысленную переписку на языке клиента; учитывать голосовые сообщения (транскрипция) и текст.',
+                        'Подстраиваться под сценарий первого контакта (/start): приветствие с учётом доступных данных о человеке.',
+                        'Оформлять участие и контакты в заявках на мероприятия (данные попадают в event_registrations).',
+                        'Инициировать оплату через интеграцию с эквайрингом после согласования условий.',
+                        'Фиксировать важное для организации ретрита в заметках профиля (user_profile).',
+                        'Передавать запрос оператору через эскалацию и получать напоминания клиентам при долгом молчании (отдельные workflow в n8n).',
+                        'Отвечать на типовые вопросы по материалам базы знаний: индекс хранится в сервисе LightRAG, источник правок — Notion (см. блок ниже).',
+                    ],
+                },
+                {
+                    type: 'h3',
+                    text: 'База знаний LightRAG — как материалы попадают в поиск',
+                },
+                {
+                    type: 'p',
+                    text: 'В LightRAG FAQ не набивают вручную: первоисточник — база Notion «База знаний ии бота».',
+                },
+                {
+                    type: 'p',
+                    text: 'Workflow в n8n «База знаний RAG — Notion → LightRAG» (описание на вкладке «N8N») по расписанию получает новые и изменённые страницы из этой базы и отсеивает строки без ответа. Для каждой карточки выполняются нормализация полей (id, категория, вопрос, ответ), upsert в PostgreSQL в таблицу lightrag и сборка Markdown. Файл отправляется на сервер LightRAG через API: загрузка, сканирование индекса, опрос статуса обработки; при обновлении материала может удаляться старая версия документа и записываться новая. После обработки в таблице lightrag фиксируются служебные идентификаторы документа.',
+                },
+                {
+                    type: 'ul',
+                    items: [
+                        'Редактировать FAQ нужно в Notion — там же появляются новые карточки и правки.',
+                        'В Telegram агент «Виктория» не пишет в LightRAG напрямую: она только запрашивает уже проиндексированные фрагменты через инструмент VECTOR к тому же экземпляру LightRAG.',
+                        'Состояние документов и интерфейс сервиса: https://lightrag.nhc.live/webui/#/',
+                    ],
+                },
+                {
+                    type: 'h3',
+                    text: 'Где в интерфейсе что смотреть и какие таблицы за этим стоят',
+                },
+                {
+                    type: 'p',
+                    text: 'Ниже — связка экранов админки с основными таблицами Supabase (имена таблиц и ключи окружения подробно расписаны на вкладке «Таблицы»). Учётные записи операторов этой панели живут в основной БД Laravel (таблица users), а не в Supabase.',
+                },
+                {
+                    type: 'table',
+                    headers: ['Раздел админки', 'Таблица(ы) в данных', 'Что это по смыслу'],
+                    rows: [
+                        [
+                            'Диалоги',
+                            'dialogs',
+                            'Построчно все сообщения чатов с ботом: пользователь и агент; беседа группируется по tg_chat_id.',
+                        ],
+                        [
+                            'Заявки',
+                            'event_registrations',
+                            'Заявки на участие в событиях; к диалогу можно привязать через настройки связи chat_id/username.',
+                        ],
+                        [
+                            'Профили пользователей',
+                            'user_profile',
+                            'Не один «профиль», а журнал заметок по username (пожелания, ограничения и т.п.), которые агент сохранил для команды.',
+                        ],
+                        [
+                            'Обращения',
+                            'escalation_message',
+                            'Эскалации из диалога для ручной работы куратора; рассылка по расписанию в Telegram команде.',
+                        ],
+                        [
+                            '—',
+                            'escalation_levels, unanswered_escalations',
+                            'Пороги и учёт автоматических напоминаний при молчании (фоллоу-ап); отдельный раздел в «Таблицы».',
+                        ],
+                        [
+                            '—',
+                            'lightrag',
+                            'Служебная таблица синхронизации FAQ с LightRAG (instance_id, track_id, doc_id); отдельного экрана в админке нет — см. «Таблицы».',
+                        ],
+                        [
+                            'Документация',
+                            '—',
+                            'Встроенная справка: вкладки «Общие сведения», «Таблицы», «N8N».',
+                        ],
+                    ],
+                },
+                {
+                    type: 'h3',
+                    text: 'Используемые ресурсы',
+                },
+                {
+                    type: 'p',
+                    text: 'Значительная часть сервисов развёрнута через Coolify — это self-hosted платформа для управления контейнерами и приложениями на своём сервере (аналог внутреннего PaaS). В Coolify у команды подняты, в частности, связка Supabase (PostgreSQL, Studio и API для таблиц бота) и отдельный экземпляр Redis, который использует сценарий n8n для кэширования контекста пользователя в диалоге с «Викторией» (короткий TTL порядка суток в логике workflow). Другие компоненты стека — например LightRAG или n8n — могут работать в Coolify же или на связанных узлах; точная топология зависит от вашей установки.',
+                },
+                {
+                    type: 'p',
+                    text: 'Админ-панель nhc-admin при необходимости подключается к базе Supabase напрямую через PostgreSQL (см. DB_* в .env) или через REST — как настроено в проекте. Логины и ключи API не хранятся в репозитории: задаются в .env на сервере; доступ к расшифровке учётных записей для команды — в блоке ниже после кодового слова.',
+                },
+                {
+                    type: 'table',
+                    headers: ['Ресурс', 'Роль', 'Публичный веб-доступ'],
+                    rows: [
+                        [
+                            'Coolify',
+                            'Центральная панель: через неё развёрнуты и обновляются контейнеры Supabase и Redis (и при необходимости другие сервисы бота). Вход в веб-интерфейс — учётная запись команды.',
+                            'https://coolify.nhc.live/login — страница входа в панель Coolify.',
+                        ],
+                        [
+                            'Supabase',
+                            'PostgreSQL и HTTP API / Studio для таблиц бота (dialogs, заявки и др.); ключи для клиентов и интеграций выдаются в проекте Supabase.',
+                            'https://supabase.nhc.live',
+                        ],
+                        [
+                            'Redis',
+                            'Кэш в памяти для основного диалогового workflow в n8n (контекст пользователя между запросами); экземпляр обычно поднимается рядом со стеком в Coolify. У приложения Laravel могут быть свои переменные REDIS_* для других задач.',
+                            'Отдельного «публичного сайта» у Redis нет — доступ по внутреннему хосту/порту.',
+                        ],
+                        [
+                            'LightRAG',
+                            'Индекс FAQ для инструмента VECTOR агента; веб-интерфейс экземпляра.',
+                            'https://lightrag.nhc.live/webui/#/',
+                        ],
+                    ],
+                },
+                {
+                    type: 'p',
+                    text: 'Ниже — компактный список кликабельных ссылок (Supabase, LightRAG, Coolify). Логины и ключи Supabase, пароль Coolify и пояснение по Redis — в блоке в конце раздела после кодового слова.',
+                },
+                {
+                    type: 'h3',
+                    text: 'Данные и автоматизация',
+                },
+                {
+                    type: 'p',
+                    text: 'Оперативные данные бота (диалоги, заявки, эскалации, заметки, справочники для фоллоу-апа, журнал синхронизации FAQ с LightRAG) хранятся в Supabase PostgreSQL — подключение и имена таблиц задаются в config/supabase.php и переменных SUPABASE_* в .env. Сценарии n8n связывают Telegram, Supabase, Notion и внешние API (LightRAG, оплата, контекст пользователя и др.); подробные схемы workflow и ссылки — на вкладке «N8N», структура полей — на «Таблицы».',
+                },
+            ],
+        },
+    },
+    {
+        id: 'tables',
+        title: 'Таблицы',
+        icon: Database,
+        content: {
+            type: 'tables',
+            sections: [
+                {
+                    id: 'dialogs',
+                    title: 'Диалоги',
+                    icon: MessageCircle,
+                    description: 'Переписка между ИИ-агентом и пользователями через Telegram.',
+                    tables: [
+                        {
+                            name: 'dialogs',
+                            envKey: 'SUPABASE_DIALOGS_TABLE',
+                            description: 'Хранит все сообщения чатов. Каждая строка — одно сообщение. Уникальная беседа определяется по tg_chat_id.',
+                            fields: [
+                                { name: 'id', type: 'uuid / bigint', description: 'Первичный ключ сообщения' },
+                                { name: 'tg_chat_id', type: 'text / bigint', description: 'Идентификатор чата Telegram — ключ группировки беседы' },
+                                { name: 'tg_username', type: 'text', description: 'Username Telegram-пользователя — отображается как заголовок беседы' },
+                                { name: 'sender / role', type: 'text', description: 'Отправитель: user — пользователь, agent — ИИ-агент' },
+                                { name: 'content', type: 'text', description: 'Текст сообщения' },
+                                {
+                                    name: 'is_followup',
+                                    type: 'boolean',
+                                    description:
+                                        'Признак автоматического напоминания после молчания пользователя: true — сообщение добавлено workflow фоллоу-апа (n8n); обычные ответы основного агента учитываются как false.',
+                                },
+                                { name: 'created_at', type: 'timestamptz', description: 'Время создания сообщения' },
+                            ],
+                            notes: [
+                                'В SQL сценария фоллоу-апа «последним обычным ответом агента» считается сообщение с role = agent и is_followup = false.',
+                            ],
+                        },
+                    ],
+                },
+                {
+                    id: 'follow-up',
+                    title: 'Фоллоу-ап (молчание пользователя)',
+                    icon: Clock,
+                    description:
+                        'Отдельный процесс по расписанию в n8n: напоминание пользователям, которые не ответили после ответа агента. Пороги задаются в escalation_levels; учёт отправленных напоминаний — в unanswered_escalations.',
+                    tables: [
+                        {
+                            name: 'escalation_levels',
+                            envKey: '',
+                            description:
+                                'Справочник уровней напоминания: для каждой включённой строки задаётся порог задержки; workflow выбирает чаты, где молчание после последнего «обычного» сообщения агента превысило threshold.',
+                            fields: [
+                                {
+                                    name: 'level',
+                                    type: 'text',
+                                    description: 'Идентификатор уровня (используется в журнале unanswered_escalations и в SQL-кандидатах)',
+                                },
+                                {
+                                    name: 'threshold',
+                                    type: 'interval',
+                                    description: 'Интервал PostgreSQL: насколько должно устареть последнее сообщение агента относительно now(), чтобы чат попал в кандидаты на этом уровне',
+                                },
+                                {
+                                    name: 'is_enabled',
+                                    type: 'boolean',
+                                    description: 'Учитывать ли уровень при выборе кандидатов',
+                                },
+                            ],
+                            notes: [
+                                'Просмотр через Supabase REST API: GET https://…/rest/v1/escalation_levels?select=* (заголовки apikey и Authorization — ключ проекта).',
+                                'Числовые пороги в минутах настраиваются в данных таблицы, не в коде админ-панели.',
+                            ],
+                        },
+                        {
+                            name: 'unanswered_escalations',
+                            envKey: '',
+                            description:
+                                'Журнал отправленных фоллоу-апов: для связки tg_chat_id + dialogs_id (последнее «обычное» сообщение агента) + level не допускается повторная отправка на том же уровне.',
+                            fields: [
+                                {
+                                    name: 'tg_chat_id',
+                                    type: 'bigint / text',
+                                    description: 'Идентификатор чата Telegram',
+                                },
+                                {
+                                    name: 'dialogs_id',
+                                    type: 'uuid / bigint',
+                                    description: 'id строки в dialogs — последнее сообщение агента с is_followup = false, от которого отсчитывается молчание',
+                                },
+                                {
+                                    name: 'level',
+                                    type: 'text',
+                                    description: 'Уровень из escalation_levels',
+                                },
+                            ],
+                            notes: [
+                                'Заполняется в n8n узлом INSERT … ON CONFLICT DO NOTHING RETURNING ….',
+                            ],
+                        },
+                    ],
+                },
+                {
+                    id: 'knowledge-rag',
+                    title: 'База знаний (LightRAG)',
+                    icon: LibraryBig,
+                    description:
+                        'Ответы на типовые вопросы агент подбирает через инструмент VECTOR к индексу LightRAG. Карточки FAQ редактируются в Notion; workflow n8n переносит их на сервер LightRAG и ведёт журнал в таблице lightrag.',
+                    tables: [
+                        {
+                            name: 'lightrag',
+                            envKey: '',
+                            description:
+                                'Зеркало записей базы знаний: текст вопроса/ответа для upsert и идентификаторы асинхронной обработки документов в LightRAG (track_id, doc_id). Связана с FAQ в Notion по полю instance_id (стабильный id строки FAQ).',
+                            fields: [
+                                {
+                                    name: 'instance_id',
+                                    type: 'text',
+                                    description: 'Внешний ключ записи FAQ (совпадает с id страницы в потоке n8n; upsert по этому полю)',
+                                },
+                                {
+                                    name: 'category',
+                                    type: 'text',
+                                    description: 'Категория FAQ из Notion',
+                                },
+                                {
+                                    name: 'content',
+                                    type: 'text',
+                                    description: 'Объединённый текст «Вопрос … Ответ …» для учёта в PostgreSQL',
+                                },
+                                {
+                                    name: 'track_id',
+                                    type: 'text',
+                                    description: 'Идентификатор отслеживания загрузки/сканирования в API LightRAG (пусто — документ ещё не отправлен или пересоздаётся)',
+                                },
+                                {
+                                    name: 'doc_id',
+                                    type: 'text',
+                                    description: 'Идентификатор документа в LightRAG после обработки',
+                                },
+                                {
+                                    name: 'id',
+                                    type: 'bigint',
+                                    description: 'Суррогатный ключ строки в таблице lightrag',
+                                },
+                            ],
+                            notes: [
+                                'Веб-интерфейс инстанса LightRAG: https://lightrag.nhc.live/webui/#/',
+                                'Отдельного раздела в админ-панели nhc-admin под эту таблицу нет; данные нужны автоматизации и отладке синхронизации.',
+                            ],
+                        },
+                    ],
+                },
+                {
+                    id: 'orders',
+                    title: 'Заявки',
+                    icon: ClipboardList,
+                    description: 'Регистрации пользователей на мероприятия.',
+                    tables: [
+                        {
+                            name: 'event_registrations',
+                            envKey: 'SUPABASE_EVENT_REGISTRATIONS_TABLE',
+                            description: 'Каждая строка — отдельная заявка на участие в мероприятии. Ссылка «Диалог» ведёт на соответствующий чат.',
+                            fields: [
+                                { name: 'id', type: 'uuid / bigint', description: 'Первичный ключ заявки' },
+                                { name: 'tg_chat_id', type: 'text / bigint', description: 'Telegram chat ID для связи с диалогом' },
+                                { name: 'created_at', type: 'timestamptz', description: 'Дата и время регистрации' },
+                            ],
+                            notes: [
+                                'Все остальные колонки подгружаются динамически и отображаются в интерфейсе.',
+                                'Способ связи с диалогом задаётся через SUPABASE_EVENT_REGISTRATIONS_DIALOG_LINK_MATCH: chat_id или username.',
+                            ],
+                        },
+                    ],
+                },
+                {
+                    id: 'appeals',
+                    title: 'Обращения',
+                    icon: MessageSquareWarning,
+                    description: 'Сообщения, эскалированные из диалогов для ручной обработки оператором.',
+                    tables: [
+                        {
+                            name: 'escalation_message',
+                            envKey: 'SUPABASE_ESCALATION_MESSAGE_TABLE',
+                            description:
+                                'Эскалация из диалога «Виктории»: строка создаётся инструментом escalation в n8n; затем по расписанию отдельный workflow рассылает необработанные строки операторам в Telegram и помечает status.',
+                            fields: [
+                                { name: 'id', type: 'uuid / bigint', description: 'Первичный ключ записи' },
+                                { name: 'username', type: 'text', description: 'Telegram username клиента (для отображения и ссылки на диалог)' },
+                                { name: 'message', type: 'text', description: 'Контекст обращения для куратора (полная формулировка задачи)' },
+                                { name: 'summary', type: 'text', description: 'Сводка для оператора (JSON контекста get-info и/или текст резюме агента)' },
+                                {
+                                    name: 'chat_id',
+                                    type: 'bigint / text',
+                                    description: 'Telegram chat ID беседы — для перехода к диалогу в админке (аналог может называться tg_chat_id в конфиге)',
+                                },
+                                {
+                                    name: 'status',
+                                    type: 'boolean',
+                                    description: 'false — ещё не отправлено в Telegram кураторам; true — обработано циклом по расписанию',
+                                },
+                                { name: 'created_at', type: 'timestamptz', description: 'Дата и время записи обращения' },
+                            ],
+                            notes: [
+                                'Дополнительные колонки подхватываются в интерфейсе, если есть в таблице.',
+                                'SUPABASE_ESCALATION_MESSAGE_DIALOG_COLUMN обычно указывает колонку для ссылки «Диалог» (chat_id или tg_chat_id).',
+                            ],
+                        },
+                    ],
+                },
+                {
+                    id: 'user-profile-notes',
+                    title: 'Заметки о пользователях',
+                    icon: NotebookPen,
+                    description:
+                        'Таблица user_profile — журнал дополнительной информации из диалогов: пожелания, личные обстоятельства и другое то, что агент сохранил для сервиса команды.',
+                    tables: [
+                        {
+                            name: 'user_profile',
+                            envKey: '',
+                            description:
+                                'Не «одна строка профиля на человека», а множество записей на один Telegram username: каждый осмысленный фрагмент (аллергия, пожелание по размещению, ограничения по здоровью и т.д.) может быть отдельной строкой со свободным текстом в description.',
+                            fields: [
+                                {
+                                    name: 'id',
+                                    type: 'uuid / bigint',
+                                    description: 'Первичный ключ записи заметки',
+                                },
+                                {
+                                    name: 'username',
+                                    type: 'text',
+                                    description: 'Username в Telegram — ключ группировки записей одного пользователя',
+                                },
+                                {
+                                    name: 'description',
+                                    type: 'text',
+                                    description: 'Текст заметки: то, что агент передал инструментом user_profile из реплики пользователя или своего резюме',
+                                },
+                                {
+                                    name: 'created_at',
+                                    type: 'timestamptz',
+                                    description: 'Время создания записи (если есть в вашей схеме Supabase)',
+                                },
+                            ],
+                            notes: [
+                                'Заполняется под-workflow n8n (Supabase «Create a row» из инструмента user_profile).',
+                                'Для сводки по человеку читайте несколько строк с одним username или агрегируйте в приложении / SQL-представлении.',
+                            ],
+                        },
+                    ],
+                },
+                {
+                    id: 'system',
+                    title: 'Системные таблицы',
+                    icon: Server,
+                    description: 'Внутренние таблицы Laravel. Хранятся в основной БД приложения.',
+                    tables: [
+                        {
+                            name: 'users',
+                            envKey: '',
+                            description: 'Пользователи административной панели. Управляются через Laravel Fortify.',
+                            fields: [
+                                { name: 'id', type: 'bigint', description: 'Первичный ключ' },
+                                { name: 'name', type: 'varchar', description: 'Отображаемое имя' },
+                                { name: 'email', type: 'varchar', description: 'Email — используется для входа' },
+                                { name: 'password', type: 'varchar', description: 'Хэш пароля (bcrypt)' },
+                                { name: 'two_factor_secret', type: 'text', description: 'Секрет для TOTP 2FA (зашифрован)' },
+                                { name: 'email_verified_at', type: 'timestamp', description: 'Время подтверждения email' },
+                                { name: 'created_at / updated_at', type: 'timestamp', description: 'Временны́е метки' },
+                            ],
+                        },
+                        {
+                            name: 'cache / cache_locks',
+                            envKey: '',
+                            description: 'Драйвер кэша Laravel. Хранит временные данные: сессии, throttle-счётчики и другое.',
+                            fields: [
+                                { name: 'key', type: 'varchar', description: 'Уникальный ключ записи кэша' },
+                                { name: 'value', type: 'mediumtext', description: 'Сериализованное значение' },
+                                { name: 'expiration', type: 'int', description: 'Unix-timestamp истечения' },
+                            ],
+                        },
+                        {
+                            name: 'jobs / job_batches / failed_jobs',
+                            envKey: '',
+                            description: 'Очереди задач Laravel. Хранят задачи, ожидающие выполнения, и упавшие задачи с трейсом ошибки.',
+                            fields: [
+                                { name: 'id', type: 'bigint', description: 'Первичный ключ' },
+                                { name: 'queue', type: 'varchar', description: 'Название очереди' },
+                                { name: 'payload', type: 'longtext', description: 'Сериализованный класс задачи с данными' },
+                                { name: 'attempts', type: 'tinyint', description: 'Количество попыток выполнения' },
+                                { name: 'available_at / created_at', type: 'int', description: 'Временны́е метки' },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    {
+        id: 'n8n',
+        title: 'N8N',
+        icon: Workflow,
+        content: {
+            type: 'workflows',
+            sections: [
+                {
+                    id: 'n8n-overview',
+                    title: 'Автоматизация',
+                    icon: Workflow,
+                    description: 'N8N — платформа автоматизации рабочих процессов. Связывает Telegram, Supabase и другие сервисы через визуальные сценарии (workflows).',
+                    workflows: [
+                        {
+                            name: 'Обработка входящего сообщения',
+                            trigger: 'Telegram Webhook',
+                            description:
+                                'Автоматизированный Telegram-бот «Виктория» — служба заботы Академии NHC. Обрабатывает входящие сообщения пользователей, определяет их контекст, отвечает через AI-агента и сохраняет историю диалогов.',
+                            workflowUrl: 'https://n8n.sarasvatiplace.online/workflow/ZpxQ7nvdLP88PQc1',
+                            steps: [
+                                'Webhook принимает все входящие POST-события от Telegram.',
+                                'Switch ветвит поток на маршруты start, voice, channel (игнор) или text.',
+                                'Загружается контекст пользователя (HTTP get-info, кэш Redis ~23.5 ч, узел context).',
+                                'Текст дебаунсится через waiting_message; голос транскрибируется Whisper; запись в dialogs и вызов агента с инструментами.',
+                                'Ответ агента сохраняется в dialogs и отправляется пользователю по абзацам.',
+                            ],
+                            detailBlocks: [
+                                {
+                                    type: 'h3',
+                                    text: 'Точка входа',
+                                },
+                                {
+                                    type: 'p',
+                                    text: 'Webhook — единственная точка входа. Принимает все входящие POST-запросы от Telegram. Каждое событие (текст, голос, команда /start) попадает сюда.',
+                                },
+                                {
+                                    type: 'h3',
+                                    text: 'Маршрутизация (Switch)',
+                                },
+                                {
+                                    type: 'p',
+                                    text: 'Switch ветвит поток на четыре маршрута:',
+                                },
+                                {
+                                    type: 'ul',
+                                    items: [
+                                        'start — команда /start, новый пользователь или перезапуск сессии',
+                                        'voice — голосовое сообщение',
+                                        'channel — сообщение из группового чата (игнорируется)',
+                                        'text — обычное текстовое сообщение',
+                                    ],
+                                },
+                                {
+                                    type: 'h3',
+                                    text: 'Маршрут /start — приветствие нового пользователя',
+                                },
+                                {
+                                    type: 'p',
+                                    text: 'Шаг 1: регистрация и подарок из Bothelp. После Switch → start параллельно выполняются Get many database pages и Get many database pages1 — поиск пользователя в Notion по username и telegram_id среди перешедших из Ботхелп; при нахождении — Send a text message2 с подарочным сообщением. Call «создание пользователя в notion и присвоение UTM» фоново регистрирует пользователя в Notion и присваивает UTM.',
+                                },
+                                {
+                                    type: 'p',
+                                    text: 'Шаг 2: загрузка контекста. Проверяем отправляет сообщение «Проверяем что мы уже знаем о вас...» с индикатором ожидания. HTTP Request запрашивает внешний сервис get-info по username и telegram_id (история проектов и платежей). Aggregate1 → Redis1 агрегируют и кэшируют данные на 23.5 часа. context1 форматирует имя, проекты со статусами и датами, платежи — текст для агента.',
+                                },
+                                {
+                                    type: 'p',
+                                    text: 'Шаг 3: приветствие. agent9 (GPT-4.1) — агент для /start: предстоящий ретрит — как участник и помощь с подготовкой; прошедший — впечатления и следующие программы; без данных — нейтральное приветствие. Память chat_histories3 (PostgreSQL, 8 последних сообщений). Send a text start1 редактирует сообщение «Проверяем...» на ответ агента.',
+                                },
+                                {
+                                    type: 'h3',
+                                    text: 'Маршрут text — обычное сообщение',
+                                },
+                                {
+                                    type: 'p',
+                                    text: 'Кэш и контекст: Redis — попытка взять данные по username; userdata → If1: при наличии кэша — context; иначе HTTP Request3 → Aggregate2 → Redis2 → context.',
+                                },
+                                {
+                                    type: 'p',
+                                    text: 'If проверяет /start в текущем сообщении: да — Delete a row очищает историю chat_histories в Supabase (сброс сессии); нет — voice проверяет тип. voice: текст → wait_message_create; голос → Get a file.',
+                                },
+                                {
+                                    type: 'p',
+                                    text: 'Дебаунсинг: wait_message_create пишет в waiting_message (Supabase) chat_id, message_id и текст. Wait2 — пауза. Select_message — последнее сообщение по chat_id. If5 сравнивает message_id с текущим: совпало — пользователь закончил набор; иначе инстанс завершается. get_message1 забирает накопленные сообщения, AggregaMessage объединяет тексты, Delete a row1 очищает waiting_message для chat_id.',
+                                },
+                                {
+                                    type: 'p',
+                                    text: 'Голос: Get a file скачивает аудио по file_id, message1 (Whisper) транскрибирует. Оба пути сходятся на create_message.',
+                                },
+                                {
+                                    type: 'p',
+                                    text: 'create_message сохраняет сообщение пользователя в dialogs с ролью user. Select rows dialogs — 7 последних записей по убыванию id. Aggregadialogs собирает историю { message, role }. message формирует объект с message, chat_id, context, name, tg_username.',
+                                },
+                                {
+                                    type: 'p',
+                                    text: 'Send a chat action2 — индикатор «печатает...». agent (GPT-5.2, температура 0.7) получает сообщение, историю, контекст пользователя и текущую дату. Инструменты: VECTOR (LightRAG), EVENT (projects в Supabase), tariffs, order, PAYMENT_LINK, escalation, user_profile, Think. Память chat_histories (8 сообщений).',
+                                },
+                                {
+                                    type: 'p',
+                                    text: 'create_agent_message сохраняет ответ в dialogs с ролью agent. Code in JavaScript2 режет ответ по пустым строкам на абзацы. Loop Over Items3: Replace Me1 → Insert or update rows в users; Send a text message — абзац в Telegram; Wait 1 с; Replace Me — цикл.',
+                                },
+                                {
+                                    type: 'h3',
+                                    text: 'Хранилища данных',
+                                },
+                                {
+                                    type: 'table',
+                                    headers: ['Хранилище', 'Тип', 'Назначение'],
+                                    rows: [
+                                        ['dialogs', 'Supabase/PostgreSQL', 'История сообщений (пользователь и агент)'],
+                                        ['lightrag', 'PostgreSQL (Supabase)', 'Журнал синхронизации FAQ с LightRAG; наполняется workflow Notion → LightRAG'],
+                                        ['escalation_levels / unanswered_escalations', 'PostgreSQL (Supabase)', 'Пороги и учёт фоллоу-апов при молчании — отдельный schedule workflow'],
+                                        ['chat_histories', 'PostgreSQL', 'Контекстное окно для LangChain (8 сообщений)'],
+                                        ['waiting_message', 'Supabase', 'Дебаунсинг входящего текста'],
+                                        ['users', 'PostgreSQL', 'Профили пользователей (upsert при сообщении)'],
+                                        ['Redis', 'In-memory cache', 'Кэш данных пользователя (TTL ~23.5 ч)'],
+                                        [
+                                            'Notion',
+                                            'Внешняя БД',
+                                            'Регистрация, UTM, Bothelp; база «База знаний ии бота» — источник FAQ для LightRAG (см. workflow RAG)',
+                                        ],
+                                    ],
+                                },
+                                {
+                                    type: 'h3',
+                                    text: 'AI-модели',
+                                },
+                                {
+                                    type: 'table',
+                                    headers: ['Нода', 'Модель', 'Назначение'],
+                                    rows: [
+                                        ['OpenAI_Model', 'GPT-5.2', 'Основной агент «Виктория»'],
+                                        ['OpenAI_Model_5_mimi', 'GPT-5-mini', 'Резервная модель агента'],
+                                        ['OpenAI_Model2', 'GPT-4.1', 'Агент приветствия /start'],
+                                        ['message1', 'Whisper', 'Транскрипция голосовых сообщений'],
+                                    ],
+                                },
+                                {
+                                    type: 'h3',
+                                    text: 'Внешние вызовы (sub-workflows)',
+                                },
+                                {
+                                    type: 'table',
+                                    headers: ['Workflow', 'Когда вызывается'],
+                                    rows: [
+                                        ['VECTOR (LightRAG)', 'Из основного диалога — поиск по индексированным FAQ на сервисе https://lightrag.nhc.live/webui/#/'],
+                                        ['escalation', 'Строка в escalation_message → уведомление кураторам по расписанию'],
+                                        ['Фоллоу-ап (отдельный workflow)', 'По расписанию — напоминание пользователю при молчании после ответа агента (не вызывается из основного webhook)'],
+                                        ['RAG Knowledge Base', 'Отдельный workflow — опрос Notion и загрузка FAQ в LightRAG; не вызывается из основного webhook'],
+                                        ['PAYMENT_LINK', 'Готовность к оплате: сценарий QR/ссылки (Init + GetQr), заявка в event_registrations'],
+                                        ['order', 'Заявки — создание строки в event_registrations'],
+                                        ['tariffs', 'Тарифы по событию'],
+                                        ['user_profile', 'Заметки о клиенте в user_profile (пожелания, личное)'],
+                                        ['создание пользователя в notion и присвоение UTM', 'Только при /start'],
+                                    ],
+                                },
+                            ],
+                        },
+                        {
+                            name: 'База знаний RAG — Notion → LightRAG',
+                            trigger: 'Notion Trigger (poll)',
+                            description:
+                                'Поддерживает актуальный индекс FAQ для инструмента VECTOR агента: раз в несколько минут опрашивается база Notion «База знаний ии бота» (добавление и обновление страниц). Строки фильтруются по наличию ответа, поля мапятся в узле Edit (id из unique_id Notion, category, question, answer, host https://lightrag.nhc.live). Для каждой записи выполняется upsert в PostgreSQL таблицу lightrag, из вопроса и ответа собирается Markdown-файл и по HTTP multipart отправляется в LightRAG (POST /documents/upload), затем запуск сканирования POST /documents/scan и опрос track_status до статуса processed; при обновлении существующей записи возможна цепочка удаления старого документа (DELETE /documents/delete_document) и повторная загрузка. Итоговые track_id и doc_id сохраняются обратно в lightrag.',
+                            workflowUrl: 'https://n8n.sarasvatiplace.online/workflow/fFY3TIQEmrzeKxRF',
+                            steps: [
+                                'Два Notion Trigger (add и pageUpdatedInDatabase) с опросом каждые 5 минут по одной базе данных.',
+                                'Filter отбрасывает записи без содержательного ответа.',
+                                'Edit нормализует поля и задаёт host сервера LightRAG.',
+                                'Loop Over Items обрабатывает карточки по одной.',
+                                'Upsert в таблицу lightrag (instance_id, category, content).',
+                                'Code формирует Markdown FAQ и бинарный файл для загрузки.',
+                                'Ветвление: если для строки ещё нет track_id — загрузка и scan; иначе опрос статуса, при необходимости удаление прежнего документа и повторная загрузка.',
+                                'Ожидания Wait и повторные запросы track_status до завершения индексации.',
+                                'Обновление track_id и doc_id в lightrag после успешной обработки.',
+                            ],
+                            detailBlocks: [
+                                {
+                                    type: 'h3',
+                                    text: 'LightRAG',
+                                },
+                                {
+                                    type: 'p',
+                                    text: 'Публичный веб-интерфейс экземпляра: https://lightrag.nhc.live/webui/#/ — там же можно проверить состояние документов и индекса.',
+                                },
+                                {
+                                    type: 'h3',
+                                    text: 'HTTP API (узлы workflow)',
+                                },
+                                {
+                                    type: 'table',
+                                    headers: ['Метод / путь', 'Назначение'],
+                                    rows: [
+                                        ['POST …/documents/upload', 'Multipart: загрузка Markdown-файла FAQ'],
+                                        ['POST …/documents/scan', 'Запуск сканирования загруженного файла'],
+                                        ['GET …/documents/track_status/:track_id', 'Опрос статуса обработки до processed'],
+                                        ['POST …/documents/delete_document', 'Удаление версии документа перед перезагрузкой при правках'],
+                                    ],
+                                },
+                                {
+                                    type: 'h3',
+                                    text: 'Связь с основным ботом',
+                                },
+                                {
+                                    type: 'p',
+                                    text: 'Диалоговый workflow вызывает инструмент VECTOR к тому же хранилищу знаний; этот сценарий только наполняет и обновляет индекс из Notion.',
+                                },
+                            ],
+                        },
+                        {
+                            name: 'PAYMENT_LINK — ссылка на оплату',
+                            trigger: 'Execute Workflow (из агента)',
+                            description:
+                                'Сценарий формирования QR-кода и ссылки на оплату: под-workflow принимает контакты и параметры события, сохраняет строку в event_registrations (PostgreSQL), затем через API Т-Банка (Tinkoff Acquiring) выполняет Init платежа и GetQr — возвращает данные для оплаты (QR / payload) в поле link для агента.',
+                            workflowUrl: 'https://n8n.sarasvatiplace.online/workflow/HapccSt57DGnNq9O',
+                            steps: [
+                                'Сценарий предназначен для выпуска платёжного QR и/или ссылки после согласования суммы и контактов.',
+                                'Триггер «When Executed by Another Workflow» получает входные поля от вызывающего сценария (см. таблицу ниже).',
+                                'Insert rows in a table — вставка в PostgreSQL таблицу event_registrations: email, нормализованный phone, username, currency, event_name, price, event_id, full_name.',
+                                'Set creds & params — подстановка параметров терминала, суммы в копейках (price × 100), OrderId, описания платежа; готовится тело для подписи Init.',
+                                'Code → Crypto (SHA256) → Tbank Init: POST https://securepay.tinkoff.ru/v2/Init с токеном по правилам Т-Банка.',
+                                'После ответа Init — Code формирует строку подписи для GetQr → Crypto → TBAnkQR: POST https://securepay.tinkoff.ru/v2/GetQr.',
+                                'Code in JavaScript возвращает { link } из ответа GetQr (поле Data) — это передаётся основному workflow агента.',
+                            ],
+                            detailBlocks: [
+                                {
+                                    type: 'h3',
+                                    text: 'QR и ссылка на оплату',
+                                },
+                                {
+                                    type: 'p',
+                                    text: 'Это тот же под-workflow PAYMENT_LINK: он не только сохраняет заявку, но и по цепочке Init → GetQr получает от Т-Банка материал для оплаты — QR-код и/или данные, из которых пользователь переходит к оплате (в зависимости от ответа API и DataType).',
+                                },
+                                {
+                                    type: 'h3',
+                                    text: 'Входные параметры под-workflow',
+                                },
+                                {
+                                    type: 'table',
+                                    headers: ['Поле', 'Назначение'],
+                                    rows: [
+                                        ['email', 'Email для DATA в Init'],
+                                        ['phone', 'Телефон; в Insert — нормализация цифр и префикса для РФ'],
+                                        ['username', 'Username Telegram и запись в заявку'],
+                                        ['currency', 'Валюта заявки'],
+                                        ['event_name', 'Название события; в Set — Description платежа'],
+                                        [
+                                            'date',
+                                            'Дата события во входе триггера; в экспорте узла Insert не маппится на event_date — при необходимости добавьте поле в маппинг.',
+                                        ],
+                                        ['price', 'Сумма; в Set — Amount = price × 100 (копейки)'],
+                                        ['event_id', 'Идентификатор события'],
+                                        ['full_name', 'ФИО в заявку'],
+                                    ],
+                                },
+                                {
+                                    type: 'h3',
+                                    text: 'Цепочка узлов',
+                                },
+                                {
+                                    type: 'table',
+                                    headers: ['Узел', 'Описание'],
+                                    rows: [
+                                        [
+                                            'When Executed by Another Workflow',
+                                            'executeWorkflowTrigger с перечисленными полями.',
+                                        ],
+                                        [
+                                            'Insert rows in a table',
+                                            'PostgreSQL: таблица public.event_registrations; телефон очищается от нецифровых символов и приводится к единому виду для РФ.',
+                                        ],
+                                        [
+                                            'Set creds & params',
+                                            'TerminalKey, Password, OrderId (например order-{{$now.toMillis()}}), Description из event_name, Amount, DATA: email и phone.',
+                                        ],
+                                        [
+                                            'Code in JavaScript1 + Crypto',
+                                            'Сборка строки подписи Init (ключи по алфавиту, Password только для подписи), SHA256 → token.',
+                                        ],
+                                        ['Tbank Init', 'Регистрация платежа в эквайринге Т-Банка.'],
+                                        [
+                                            'Code in JavaScript3 + Crypto1',
+                                            'Подпись запроса GetQr по PaymentId и параметрам терминала.',
+                                        ],
+                                        ['TBAnkQR', 'Запрос QR / payload для оплаты (DataType из предыдущих шагов).'],
+                                        [
+                                            'Code in JavaScript',
+                                            'Формирует возврат под-workflow: { link } из поля Data ответа GetQr (payload/QR или данные для оплаты — по ответу Т-Банка).',
+                                        ],
+                                    ],
+                                },
+                                {
+                                    type: 'h3',
+                                    text: 'Безопасность',
+                                },
+                                {
+                                    type: 'p',
+                                    text: 'Пароль терминала и секреты подписи не должны храниться в открытом виде в узлах Code и Set в продакшене: вынесите их в credentials n8n или переменные окружения и подставляйте в узлы. Если секреты попали в экспорт workflow или в репозиторий — смените пароль в личном кабинете Т-Банка.',
+                                },
+                                {
+                                    type: 'h3',
+                                    text: 'Когда вызывается',
+                                },
+                                {
+                                    type: 'ul',
+                                    items: [
+                                        'Пользователь готов оплатить: тариф и событие согласованы, контакты собраны.',
+                                        'После вызова в заявке уже есть строка в event_registrations; затем пользователь получает QR или ссылку из ответа GetQr.',
+                                    ],
+                                },
+                            ],
+                        },
+                        {
+                            name: 'order — заявки',
+                            trigger: 'Execute Workflow (из агента)',
+                            description:
+                                'Инструмент order в n8n — сценарий заявок: короткий под-workflow с триггером create_order принимает поля заявки и одним узлом Supabase создаёт строку в event_registrations (те же заявки, что отображаются в разделе заявок админки).',
+                            workflowUrl: 'https://n8n.sarasvatiplace.online/workflow/q4IDS4V1pLnRxurR',
+                            steps: [
+                                'Агент распознаёт намерение зарегистрироваться или оставить заявку на участие.',
+                                'Вызывается под-workflow order: входные данные передаются в узел create_order (executeWorkflowTrigger).',
+                                'Узел Create a row (Supabase) вставляет запись в таблицу event_registrations с маппингом полей (см. ниже).',
+                                'Ответ основного сценария агента пользователю формируется уже за пределами этого под-workflow.',
+                            ],
+                            detailBlocks: [
+                                {
+                                    type: 'h3',
+                                    text: 'Терминология',
+                                },
+                                {
+                                    type: 'p',
+                                    text: 'В коде и инструментах агента поле называется order; по смыслу это заявки пользователей (участие в мероприятии и данные для связи). Запись попадает в event_registrations.',
+                                },
+                                {
+                                    type: 'h3',
+                                    text: 'Узлы n8n',
+                                },
+                                {
+                                    type: 'table',
+                                    headers: ['Узел', 'Описание'],
+                                    rows: [
+                                        [
+                                            'create_order',
+                                            'executeWorkflowTrigger: точка входа с именованными входами для вызова из основного диалогового workflow.',
+                                        ],
+                                        [
+                                            'Create a row',
+                                            'Supabase: операция создания строки в таблице event_registrations.',
+                                        ],
+                                    ],
+                                },
+                                {
+                                    type: 'h3',
+                                    text: 'Входные параметры под-workflow',
+                                },
+                                {
+                                    type: 'table',
+                                    headers: ['Поле', 'Назначение'],
+                                    rows: [
+                                        ['email', 'Email заявителя'],
+                                        ['phone', 'Телефон'],
+                                        ['firstname', 'Имя'],
+                                        ['secondname', 'Отчество'],
+                                        ['lastname', 'Фамилия'],
+                                        ['placement', 'Название / формулировка мероприятия (программа)'],
+                                        ['placement_id', 'Идентификатор размещения / события'],
+                                        ['username', 'Username в Telegram'],
+                                        ['chat_id', 'Идентификатор чата Telegram (число)'],
+                                    ],
+                                },
+                                {
+                                    type: 'h3',
+                                    text: 'Маппинг в event_registrations',
+                                },
+                                {
+                                    type: 'table',
+                                    headers: ['Колонка', 'Значение'],
+                                    rows: [
+                                        ['email', '{{ $json.email }} в нижнем регистре'],
+                                        [
+                                            'full_name',
+                                            'Строка из фамилии, имени и отчества: lastname + firstname + secondname',
+                                        ],
+                                        ['phone', '{{ $json.phone }} после trim()'],
+                                        ['event_name', '{{ $json.placement }}'],
+                                        ['event_id', '{{ $json.placement_id }}'],
+                                        ['username', '{{ $json.username }}'],
+                                        ['chat_id', '{{ $json.chat_id }}'],
+                                    ],
+                                },
+                                {
+                                    type: 'h3',
+                                    text: 'Отличие от PAYMENT_LINK',
+                                },
+                                {
+                                    type: 'p',
+                                    text: 'Сценарий order (заявки) только сохраняет заявку в Supabase без эквайринга. PAYMENT_LINK дополнительно создаёт строку заявки (в вашей схеме через PostgreSQL), регистрирует платёж Init/GetQr и возвращает QR или данные оплаты.',
+                                },
+                                {
+                                    type: 'h3',
+                                    text: 'Отличие от оплаты',
+                                },
+                                {
+                                    type: 'p',
+                                    text: 'Заявка фиксирует участие и данные в event_registrations; оплата может быть позже через PAYMENT_LINK или вручную.',
+                                },
+                                {
+                                    type: 'h3',
+                                    text: 'Когда вызывается',
+                                },
+                                {
+                                    type: 'ul',
+                                    items: [
+                                        'Пользователь хочет записаться, оставить заявку или зарезервировать место без немедленной оплаты.',
+                                        'Нужна проверка условий или слотов перед выставлением платежа.',
+                                    ],
+                                },
+                            ],
+                        },
+                        {
+                            name: 'tariffs — тарифы по событию',
+                            trigger: 'Execute Workflow',
+                            description:
+                                'Тарифы для ответов агента опираются на данные в Supabase. Отдельный под-workflow синхронизирует события из Notion в БД (таблица notion_events); второй workflow — инструмент tariffs в диалоге «Виктории», который по запросу агента возвращает тарифы по событию.',
+                            workflowLinks: [
+                                {
+                                    href: 'https://n8n.sarasvatiplace.online/workflow/ElVM6RZdJoXja3AM',
+                                    label: 'Инструмент tariffs (ответ агенту)',
+                                },
+                                {
+                                    href: 'https://n8n.sarasvatiplace.online/workflow/QoDVPU65aCDQEANu',
+                                    label: 'Синхронизация Notion → БД (события для тарифов)',
+                                },
+                            ],
+                            steps: [
+                                'Сценарий синхронизации вызывается другим workflow и переносит / актуализирует события из Notion в Supabase (слой notion_events), чтобы тарифы не подтягивались напрямую из Notion в момент ответа.',
+                                'В основном боте агент вызывает инструмент tariffs с идентификатором или контекстом события.',
+                                'Инструмент читает актуальные строки из БД (события и связанные тарифные данные по вашей схеме в n8n).',
+                                'Ответ нормализуется и возвращается агенту для формулировки ответа пользователю.',
+                            ],
+                            detailBlocks: [
+                                {
+                                    type: 'h3',
+                                    text: 'Синхронизация Notion → БД',
+                                },
+                                {
+                                    type: 'p',
+                                    text: 'Workflow QoDVPU65aCDQEANu — триггер «When Executed by Another Workflow» (executeWorkflowTrigger): запуск из другого сценария. Назначение — наполнять или обновлять данные событий в Supabase после правок в Notion.',
+                                },
+                                {
+                                    type: 'table',
+                                    headers: ['Узел', 'Описание'],
+                                    rows: [
+                                        [
+                                            'When Executed by Another Workflow',
+                                            'Точка входа: под-workflow вызывается извне.',
+                                        ],
+                                        [
+                                            'Get many rows',
+                                            'Supabase: операция getAll по таблице notion_events; фильтр date_start ≥ {{ $now }} — только текущие и будущие события.',
+                                        ],
+                                        [
+                                            'Replace me with your logic',
+                                            'Узел noOp — заглушка: сюда подключается логика записи и сопоставления полей Notion ↔ Supabase.',
+                                        ],
+                                    ],
+                                },
+                                {
+                                    type: 'h3',
+                                    text: 'Инструмент tariffs в диалоге',
+                                },
+                                {
+                                    type: 'p',
+                                    text: 'Workflow ElVM6RZdJoXja3AM вызывается инструментом tariffs основного агента: по выбранному событию возвращает структурированные тарифы из БД (после синхронизации).',
+                                },
+                                {
+                                    type: 'h3',
+                                    text: 'Связь с EVENT',
+                                },
+                                {
+                                    type: 'p',
+                                    text: 'Инструмент EVENT даёт список и свойства событий; tariffs детализирует цены и условия по конкретной программе.',
+                                },
+                                {
+                                    type: 'h3',
+                                    text: 'Когда вызывается инструмент tariffs',
+                                },
+                                {
+                                    type: 'ul',
+                                    items: [
+                                        'Вопросы «сколько стоит», «какие пакеты», «что входит» по программе.',
+                                        'Сравнение предложений после того, как пользователь выбрал событие.',
+                                    ],
+                                },
+                            ],
+                        },
+                        {
+                            name: 'user_profile — заметки о клиенте',
+                            trigger: 'Execute Workflow (из агента)',
+                            description:
+                                'Короткий под-workflow: сохраняет в Supabase таблицу user_profile свободный текст о пользователе (пожелания, аллергии, личное — как сформулировал агент) и username для группировки.',
+                            workflowUrl: 'https://n8n.sarasvatiplace.online/workflow/GTmQY0aVDFqGH3CF',
+                            steps: [
+                                'Триггер «When Executed by Another Workflow» принимает два входа: текст заметки и username.',
+                                'Узел Create a row (Supabase) создаёт строку в таблице user_profile: description ← текст заметки, username ← Telegram username.',
+                                'Основной диалог бота может не ждать завершения записи — типичный асинхронный вызов инструмента.',
+                            ],
+                            detailBlocks: [
+                                {
+                                    type: 'h3',
+                                    text: 'Смысл таблицы user_profile',
+                                },
+                                {
+                                    type: 'p',
+                                    text: 'Это не единственная строка «карточки клиента», а журнал: при каждом сохранении добавляется новая запись с тем же username и новым текстом в description. Подробности см. вкладку «Таблицы» → раздел «Заметки о пользователях»; агрегированный просмотр — в разделе приложения «Профили пользователей».',
+                                },
+                                {
+                                    type: 'h3',
+                                    text: 'Узлы n8n',
+                                },
+                                {
+                                    type: 'table',
+                                    headers: ['Узел', 'Описание'],
+                                    rows: [
+                                        [
+                                            'When Executed by Another Workflow',
+                                            'Входы: message_user_profile (текст для description) и username.',
+                                        ],
+                                        [
+                                            'Create a row',
+                                            'Supabase: таблица user_profile; поля username и description маппятся из входа.',
+                                        ],
+                                    ],
+                                },
+                                {
+                                    type: 'h3',
+                                    text: 'Замечание по имени входа',
+                                },
+                                {
+                                    type: 'p',
+                                    text: 'В экспорте workflow поле названо message_user_profile с пробелом в конце; в выражении используется $json["message_user_profile "]. Имеет смысл переименовать вход в n8n без пробела, чтобы не ошибаться при вызове.',
+                                },
+                                {
+                                    type: 'h3',
+                                    text: 'Когда вызывается',
+                                },
+                                {
+                                    type: 'ul',
+                                    items: [
+                                        'Пользователь говорит что-то личное или важное для организации ретрита.',
+                                        'Агент через инструмент фиксирует сжатую формулировку в user_profile для кураторов.',
+                                    ],
+                                },
+                            ],
+                        },
+                        {
+                            name: 'Создание пользователя в Notion и присвоение UTM',
+                            trigger: 'Execute Workflow (из /start)',
+                            description:
+                                'Вызывается только на маршруте /start: регистрирует пользователя в Notion и проставляет UTM-метки для аналитики переходов и кампаний.',
+                            steps: [
+                                'После Switch → start запускается параллельно с проверками Bothelp и загрузкой контекста.',
+                                'Создаётся или обновляется запись в базе Notion по telegram_id и username.',
+                                'UTM подтягиваются из параметров старта бота, deep link или сохранённых атрибутов сессии.',
+                                'Ошибки Notion не блокируют приветственное сообщение пользователю в основном потоке.',
+                            ],
+                            detailBlocks: [
+                                {
+                                    type: 'h3',
+                                    text: 'Связь с основным сценарием',
+                                },
+                                {
+                                    type: 'p',
+                                    text: 'В документации основного workflow это же действие упомянуто как Call «создание пользователя в notion и присвоение UTM» при первом контакте.',
+                                },
+                                {
+                                    type: 'h3',
+                                    text: 'Назначение данных',
+                                },
+                                {
+                                    type: 'table',
+                                    headers: ['Данные', 'Зачем'],
+                                    rows: [
+                                        ['Notion-страница пользователя', 'Единая карточка лида для команды Академии'],
+                                        ['UTM', 'Атрибуция источника и кампании'],
+                                    ],
+                                },
+                            ],
+                        },
+                        {
+                            name: 'Эскалация обращения',
+                            trigger: 'Инструмент escalation + расписание',
+                            description:
+                                'Два связанных workflow в n8n: (1) вызов из основного диалогового сценария записывает строку в escalation_message с username, message, summary и chat_id; (2) по расписанию каждые 10 минут выбираются строки со status=false, в Telegram группу уходит текст заявки, затем status=true.',
+                            workflowLinks: [
+                                {
+                                    href: 'https://n8n.sarasvatiplace.online/workflow/jWyNP3UGQlKaDQtG',
+                                    label: 'Запись эскалации из агента',
+                                },
+                                {
+                                    href: 'https://n8n.sarasvatiplace.online/workflow/EgMXItRIU2dL1ZOd',
+                                    label: 'Рассылка кураторам (schedule trigger)',
+                                },
+                            ],
+                            steps: [
+                                'Агент вызывает инструмент escalation с username, текстом сообщения пользователя, сводкой (summary) и chat_id.',
+                                'Под-workflow создаёт строку в Supabase escalation_message через узел esc_message (поля совпадают со входами триггера).',
+                                'Отдельный сценарий раз в 10 минут загружает записи с status=false.',
+                                'Для каждой строки отправляется сообщение в Telegram (группа и тема задаются в узле Telegram).',
+                                'После отправки строка обновляется: status=true. Заглушка Replace Me возвращает управление циклу.',
+                            ],
+                            detailBlocks: [
+                                {
+                                    type: 'h3',
+                                    text: 'Workflow записи (jWyNP3UGQlKaDQtG)',
+                                },
+                                {
+                                    type: 'table',
+                                    headers: ['Узел', 'Описание'],
+                                    rows: [
+                                        [
+                                            'When Executed by Another Workflow',
+                                            'Входы: username, message, summary, chat_id.',
+                                        ],
+                                        [
+                                            'esc_message',
+                                            'Supabase — создание строки в escalation_message; ошибки узла не рвут основной поток (onError: continue).',
+                                        ],
+                                    ],
+                                },
+                                {
+                                    type: 'h3',
+                                    text: 'Workflow рассылки по расписанию (EgMXItRIU2dL1ZOd)',
+                                },
+                                {
+                                    type: 'table',
+                                    headers: ['Узел', 'Описание'],
+                                    rows: [
+                                        ['Schedule Trigger', 'Интервал 10 минут.'],
+                                        [
+                                            'esc_message1',
+                                            'Supabase getAll по escalation_message с фильтром status is false.',
+                                        ],
+                                        ['Loop Over Items', 'Разбор очереди необработанных строк.'],
+                                        [
+                                            'Send a text message1',
+                                            'Telegram: текст с username, message и summary; HTML; при необходимости topic (message_thread_id) для темы в супергруппе.',
+                                        ],
+                                        [
+                                            'esc_message2',
+                                            'Обновление той же строки по id: status = true.',
+                                        ],
+                                        ['Replace Me', 'Узел-заглушка перед возвратом в Loop Over Items.'],
+                                    ],
+                                },
+                                {
+                                    type: 'h3',
+                                    text: 'Примечание по секретам',
+                                },
+                                {
+                                    type: 'p',
+                                    text: 'Идентификатор группы Telegram, топик и токен бота заданы в узле Telegram — не коммитьте экспорт workflow с живыми секретами в открытый репозиторий.',
+                                },
+                            ],
+                        },
+                        {
+                            name: 'Фоллоу-ап при молчании пользователя',
+                            trigger: 'Schedule Trigger (интервал по минутам)',
+                            description:
+                                'Отдельный сценарий по расписанию (на схеме — каждые 5 минут): находит чаты, где последнее значимое сообщение — от агента без признака фоллоу-апа, пользователь после этого не писал дольше порога из escalation_levels; два шага ИИ проверяют, что диалог действительно «завис» на ожидании ответа, затем формируют короткое ненавязчивое напоминание на языке клиента, сохраняют строку в dialogs с is_followup=true и отправляют её в Telegram.',
+                            workflowUrl: 'https://n8n.sarasvatiplace.online/workflow/H24KvgSNJ8vS3TwU',
+                            steps: [
+                                'Schedule Trigger периодически запускает цепочку.',
+                                'Узел Postgres «Select Escalation Candidates»: SQL по таблицам dialogs, escalation_levels и unanswered_escalations — чаты, где последнее «обычное» сообщение агента (role = agent, is_followup = false) старше threshold включённого уровня, при этом пользователь не отвечал после агента; исключаются уже зафиксированные комбинации в unanswered_escalations.',
+                                'INSERT в unanswered_escalations (ON CONFLICT DO NOTHING) помечает попытку по tg_chat_id, dialogs_id и level.',
+                                'При ненулевом числе кандидатов — Split in Batches / цикл по элементам.',
+                                'Для каждого чата: выборка последних 7 строк dialogs, агрегация истории.',
+                                'Агент «проверка диалога» (GPT-4.1 + structured JSON): статус completed | waiting_user | active и признак agent_waits_for_user.',
+                                'Фильтр пропускает только сценарии, где агент действительно ждёт пользователя.',
+                                'Агент «Фоллоу-ап»: 1–2 предложения, без продажного давления, язык по последнему сообщению пользователя.',
+                                'Узел Supabase «create_message» создаёт в dialogs сообщение агента с is_followup = true; затем Telegram Send пользователю.',
+                                'Заглушка Replace Me замыкает цикл обработки очереди.',
+                            ],
+                            detailBlocks: [
+                                {
+                                    type: 'h3',
+                                    text: 'Источники данных в PostgreSQL',
+                                },
+                                {
+                                    type: 'p',
+                                    text: 'Узлы Postgres в workflow подключены к той же базе, где лежат таблицы Supabase (public.dialogs и др.). Поля в aggregate могут называться message в зависимости от схемы — ориентируйтесь на фактические имена колонок в вашей БД.',
+                                },
+                                {
+                                    type: 'h3',
+                                    text: 'Таблицы и поля',
+                                },
+                                {
+                                    type: 'table',
+                                    headers: ['Объект', 'Роль'],
+                                    rows: [
+                                        [
+                                            'dialogs.is_followup',
+                                            'Различает обычные ответы агента и автоматические напоминания; при выборе «последнего агента» учитываются только строки с false.',
+                                        ],
+                                        [
+                                            'escalation_levels',
+                                            'Включённые уровни с полями level, threshold (interval), is_enabled — задают задержки напоминаний.',
+                                        ],
+                                        [
+                                            'unanswered_escalations',
+                                            'Не даёт повторно отправить фоллоу-ап для того же dialogs_id и level.',
+                                        ],
+                                    ],
+                                },
+                                {
+                                    type: 'h3',
+                                    text: 'Узлы по смыслу',
+                                },
+                                {
+                                    type: 'table',
+                                    headers: ['Узел', 'Описание'],
+                                    rows: [
+                                        ['Schedule Trigger', 'Периодический запуск (интервал задаётся в параметрах триггера).'],
+                                        ['Select Escalation Candidates', 'Execute query — отбор кандидатов по SQL.'],
+                                        ['Execute a SQL', 'Регистрация попытки в unanswered_escalations.'],
+                                        ['Summarize / Merge / If', 'Подсчёт количества и вход в цикл только при наличии строк.'],
+                                        ['Loop Over Items', 'Порядковая обработка кандидатов.'],
+                                        ['Select rows dialogs + Aggregate', 'Контекст последних сообщений для ИИ.'],
+                                        ['проверка диалога', 'LangChain agent + Structured Output Parser — классификация диалога.'],
+                                        ['Филтр на необходимость ФОЛЛУ-АПП', 'Условие по agent_waits_for_user.'],
+                                        ['Фоллоу-ап', 'LangChain agent (GPT-4.1) — текст напоминания.'],
+                                        ['create_message (Supabase)', 'Вставка строки в dialogs с is_followup = true.'],
+                                        ['Send (Telegram)', 'Отправка текста в чат пользователя.'],
+                                    ],
+                                },
+                                {
+                                    type: 'h3',
+                                    text: 'Справочник порогов',
+                                },
+                                {
+                                    type: 'p',
+                                    text: 'Актуальные значения уровней и интервалов смотрите в таблице escalation_levels (например через Supabase REST: GET …/escalation_levels?select=* с заголовками apikey и Authorization). На sticky-заметке в workflow указаны ориентиры по интервалу запуска и примерам порогов — сверяйте с данными в БД.',
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+];
+
+// ─── Components ───────────────────────────────────────────────────────────────
+
+export type DocumentationResourceSecrets = {
+    supabase_url: string | null;
+    supabase_credentials: string | null;
+    lightrag_url: string | null;
+    coolify_email: string | null;
+    coolify_password: string | null;
+    redis_note: string | null;
+};
+
+const DOC_LINK_SUPABASE = 'https://supabase.nhc.live';
+const DOC_LINK_LIGHTRAG = 'https://lightrag.nhc.live/webui/#/';
+const DOC_LINK_COOLIFY_LOGIN = 'https://coolify.nhc.live/login';
+
+function OverviewInfrastructureLinks({ coolifyPanelUrl }: { coolifyPanelUrl?: string | null }) {
+    const linkClass =
+        'break-all font-medium text-blue-600 underline-offset-2 hover:underline dark:text-blue-400';
+    const coolifyHref = (coolifyPanelUrl && coolifyPanelUrl.trim() !== '') ? coolifyPanelUrl.trim() : DOC_LINK_COOLIFY_LOGIN;
+
+    return (
+        <div className="mt-6 space-y-2 rounded-lg border border-sidebar-border/40 bg-neutral-50/50 p-4 dark:border-sidebar-border/30 dark:bg-neutral-900/30">
+            <h3 className="text-sm font-semibold text-neutral-800 dark:text-neutral-200">
+                Основные веб-ссылки
+            </h3>
+            <ul className="list-disc space-y-2 pl-5 text-sm text-neutral-600 dark:text-neutral-400">
+                <li>
+                    <span className="text-neutral-500 dark:text-neutral-400">Supabase (Studio / проект): </span>
+                    <a href={DOC_LINK_SUPABASE} target="_blank" rel="noopener noreferrer" className={linkClass}>
+                        {DOC_LINK_SUPABASE}
+                    </a>
+                </li>
+                <li>
+                    <span className="text-neutral-500 dark:text-neutral-400">LightRAG (интерфейс индекса): </span>
+                    <a href={DOC_LINK_LIGHTRAG} target="_blank" rel="noopener noreferrer" className={linkClass}>
+                        {DOC_LINK_LIGHTRAG}
+                    </a>
+                </li>
+                <li>
+                    <span className="text-neutral-500 dark:text-neutral-400">Coolify (вход в панель): </span>
+                    <a href={coolifyHref} target="_blank" rel="noopener noreferrer" className={linkClass}>
+                        {coolifyHref}
+                    </a>
+                    {coolifyHref !== DOC_LINK_COOLIFY_LOGIN ? (
+                        <span className="ml-1 text-xs text-neutral-500"> (из DOCUMENTATION_COOLIFY_PANEL_URL)</span>
+                    ) : null}
+                </li>
+            </ul>
+        </div>
+    );
+}
+
+function DocumentationInfrastructureVault({
+    unlocked,
+    secrets,
+    coolifyPanelUrl,
+}: {
+    unlocked: boolean;
+    secrets: DocumentationResourceSecrets | null;
+    coolifyPanelUrl?: string | null;
+}) {
+    const [passphrase, setPassphrase] = useState('');
+    const { errors } = usePage<{ errors?: { passphrase?: string } }>().props;
+
+    const handleUnlock = (e: FormEvent) => {
+        e.preventDefault();
+        router.post(
+            documentationUnlockRoutes.unlock.url(),
+            { passphrase },
+            {
+                preserveScroll: true,
+                onSuccess: () => setPassphrase(''),
+            },
+        );
+    };
+
+    const handleLock = () => {
+        router.post(documentationUnlockRoutes.lock.url(), {}, { preserveScroll: true });
+    };
+
+    const labelRow = (label: string, children: ReactNode) => (
+        <div className="space-y-1">
+            <div className="text-xs font-medium text-neutral-500 dark:text-neutral-400">{label}</div>
+            <div className="text-sm text-neutral-800 dark:text-neutral-200">{children}</div>
+        </div>
+    );
+
+    return (
+        <div className="mt-10 rounded-xl border border-sidebar-border/70 bg-neutral-50/80 p-4 dark:border-sidebar-border dark:bg-neutral-900/40">
+            <h3 className="text-sm font-semibold text-neutral-800 dark:text-neutral-200">
+                Учётные данные инфраструктуры
+            </h3>
+            <p className="mt-2 text-xs text-neutral-500 dark:text-neutral-400">
+                Введите кодовое слово, чтобы загрузить значения из серверной конфигурации (они не хранятся в git). Чтобы
+                скрыть — «Закрыть доступ» (сессия).
+            </p>
+
+            {!unlocked ? (
+                <form className="mt-4 flex flex-wrap items-end gap-2" onSubmit={handleUnlock}>
+                    <div className="min-w-[200px] flex-1 space-y-1">
+                        <label htmlFor="doc-passphrase" className="text-xs text-neutral-500 dark:text-neutral-400">
+                            Кодовое слово
+                        </label>
+                        <Input
+                            id="doc-passphrase"
+                            type="password"
+                            autoComplete="off"
+                            value={passphrase}
+                            onChange={(e) => setPassphrase(e.target.value)}
+                            aria-invalid={Boolean(errors?.passphrase)}
+                            className="font-mono text-sm"
+                        />
+                        {errors?.passphrase ? <p className="text-xs text-destructive">{errors.passphrase}</p> : null}
+                    </div>
+                    <Button type="submit">Показать</Button>
+                </form>
+            ) : (
+                <div className="mt-4 space-y-4">
+                    <div className="grid gap-4">
+                        {labelRow(
+                            'Supabase',
+                            <>
+                                {secrets?.supabase_url ? (
+                                    <a
+                                        href={secrets.supabase_url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="break-all text-blue-600 hover:underline dark:text-blue-400"
+                                    >
+                                        {secrets.supabase_url}
+                                    </a>
+                                ) : (
+                                    '—'
+                                )}
+                                {secrets?.supabase_credentials ? (
+                                    <pre className="mt-2 overflow-x-auto whitespace-pre-wrap rounded-lg border border-sidebar-border/50 bg-background p-3 font-mono text-xs">
+                                        {secrets.supabase_credentials}
+                                    </pre>
+                                ) : (
+                                    <p className="mt-2 text-xs text-neutral-500">
+                                        Задайте DOCUMENTATION_SUPABASE_CREDENTIALS на сервере (многострочный текст в .env).
+                                    </p>
+                                )}
+                            </>,
+                        )}
+                        {labelRow(
+                            'LightRAG (веб-интерфейс)',
+                            secrets?.lightrag_url ? (
+                                <a
+                                    href={secrets.lightrag_url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="break-all text-blue-600 hover:underline dark:text-blue-400"
+                                >
+                                    {secrets.lightrag_url}
+                                </a>
+                            ) : (
+                                '—'
+                            ),
+                        )}
+                        {labelRow(
+                            'Coolify',
+                            <div className="space-y-2">
+                                <div>
+                                    <span className="text-neutral-500">Вход в панель: </span>
+                                    <a
+                                        href={
+                                            coolifyPanelUrl && coolifyPanelUrl.trim() !== ''
+                                                ? coolifyPanelUrl.trim()
+                                                : DOC_LINK_COOLIFY_LOGIN
+                                        }
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="break-all text-blue-600 underline-offset-2 hover:underline dark:text-blue-400"
+                                    >
+                                        {coolifyPanelUrl && coolifyPanelUrl.trim() !== ''
+                                            ? coolifyPanelUrl.trim()
+                                            : DOC_LINK_COOLIFY_LOGIN}
+                                    </a>
+                                </div>
+                                {secrets?.coolify_email ? (
+                                    <div>
+                                        <span className="text-neutral-500">Email: </span>
+                                        <span className="break-all font-mono text-xs">{secrets.coolify_email}</span>
+                                    </div>
+                                ) : null}
+                                {secrets?.coolify_password ? (
+                                    <div>
+                                        <span className="text-neutral-500">Пароль: </span>
+                                        <span className="font-mono text-xs">{secrets.coolify_password}</span>
+                                    </div>
+                                ) : null}
+                                {!secrets?.coolify_email && !secrets?.coolify_password ? (
+                                    <p className="text-xs text-neutral-500">Задайте DOCUMENTATION_COOLIFY_EMAIL и DOCUMENTATION_COOLIFY_PASSWORD на сервере.</p>
+                                ) : null}
+                            </div>,
+                        )}
+                        {labelRow(
+                            'Redis',
+                            secrets?.redis_note ? (
+                                <pre className="overflow-x-auto whitespace-pre-wrap rounded-lg border border-sidebar-border/50 bg-background p-3 font-mono text-xs">
+                                    {secrets.redis_note}
+                                </pre>
+                            ) : (
+                                <p className="text-xs text-neutral-500">
+                                    Задайте DOCUMENTATION_REDIS_NOTE на сервере или смотрите REDIS_* этого приложения.
+                                </p>
+                            ),
+                        )}
+                    </div>
+                    <Button type="button" variant="outline" size="sm" onClick={handleLock}>
+                        Закрыть доступ
+                    </Button>
+                </div>
+            )}
+        </div>
+    );
+}
+
+function FieldTable({ fields }: { fields: TableField[] }) {
+    return (
+        <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+                <thead>
+                    <tr className="border-b border-sidebar-border/50">
+                        <th className="pb-2 pr-4 text-left font-medium text-neutral-500 dark:text-neutral-400">Колонка</th>
+                        <th className="pb-2 pr-4 text-left font-medium text-neutral-500 dark:text-neutral-400">Тип</th>
+                        <th className="pb-2 text-left font-medium text-neutral-500 dark:text-neutral-400">Описание</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {fields.map((field) => (
+                        <tr key={field.name} className="border-b border-sidebar-border/30 last:border-0">
+                            <td className="py-2 pr-4 align-top font-mono text-xs text-blue-600 dark:text-blue-400">{field.name}</td>
+                            <td className="py-2 pr-4 align-top font-mono text-xs text-neutral-500 dark:text-neutral-400">{field.type}</td>
+                            <td className="py-2 align-top text-neutral-700 dark:text-neutral-300">{field.description}</td>
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
+        </div>
+    );
+}
+
+function TableCard({ table }: { table: TableDoc }) {
+    const [open, setOpen] = useState(false);
+
+    return (
+        <Collapsible open={open} onOpenChange={setOpen}>
+            <CollapsibleTrigger className="group flex w-full items-center gap-3 rounded-lg border border-sidebar-border/70 bg-background px-4 py-3 text-left transition-colors hover:bg-neutral-50/80 dark:border-sidebar-border dark:hover:bg-neutral-900/50">
+                <Database className="h-4 w-4 shrink-0 text-neutral-400" />
+                <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-mono text-sm font-semibold">{table.name}</span>
+                        {table.envKey && (
+                            <span className="rounded bg-neutral-100 px-1.5 py-0.5 font-mono text-xs text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400">
+                                {table.envKey}
+                            </span>
+                        )}
+                    </div>
+                    <p className="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">{table.description}</p>
+                </div>
+                {open ? (
+                    <ChevronDown className="h-4 w-4 shrink-0 text-neutral-400" />
+                ) : (
+                    <ChevronRight className="h-4 w-4 shrink-0 text-neutral-400" />
+                )}
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+                <div className="mt-1 rounded-lg border border-sidebar-border/50 bg-neutral-50/80 p-4 dark:border-sidebar-border/40 dark:bg-neutral-900/40">
+                    <FieldTable fields={table.fields} />
+                    {table.notes && table.notes.length > 0 && (
+                        <ul className="mt-3 space-y-1 border-t border-sidebar-border/30 pt-3">
+                            {table.notes.map((note, i) => (
+                                <li key={i} className="flex items-start gap-2 text-xs text-neutral-500 dark:text-neutral-400">
+                                    <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-neutral-400" />
+                                    {note}
+                                </li>
+                            ))}
+                        </ul>
+                    )}
+                </div>
+            </CollapsibleContent>
+        </Collapsible>
+    );
+}
+
+function WorkflowDetailBlocks({
+    blocks,
+    standalone,
+}: {
+    blocks: WorkflowDetailBlock[];
+    standalone?: boolean;
+}) {
+    return (
+        <div
+            className={
+                standalone
+                    ? 'space-y-4'
+                    : 'mt-4 space-y-4 border-t border-sidebar-border/30 pt-4'
+            }
+        >
+            {blocks.map((block, i) => {
+                if (block.type === 'h3') {
+                    return (
+                        <h3 key={i} className="text-sm font-semibold text-neutral-800 dark:text-neutral-200">
+                            {block.text}
+                        </h3>
+                    );
+                }
+
+                if (block.type === 'p') {
+                    return (
+                        <p key={i} className="text-sm leading-relaxed text-neutral-600 dark:text-neutral-400">
+                            {block.text}
+                        </p>
+                    );
+                }
+
+                if (block.type === 'ul') {
+                    return (
+                        <ul key={i} className="list-disc space-y-1.5 pl-5 text-sm text-neutral-600 dark:text-neutral-400">
+                            {block.items.map((item, j) => (
+                                <li key={j}>{item}</li>
+                            ))}
+                        </ul>
+                    );
+                }
+
+                if (block.type === 'code') {
+                    return (
+                        <pre
+                            key={i}
+                            className="overflow-x-auto rounded-lg border border-sidebar-border/50 bg-neutral-100 p-3 font-mono text-xs text-neutral-800 dark:bg-neutral-900/60 dark:text-neutral-200"
+                        >
+                            <code>{block.text}</code>
+                        </pre>
+                    );
+                }
+
+                if (block.type === 'table') {
+                    return (
+                        <div key={i} className="overflow-x-auto">
+                            <table className="w-full text-xs">
+                                <thead>
+                                    <tr className="border-b border-sidebar-border/50">
+                                        {block.headers.map((h) => (
+                                            <th
+                                                key={h}
+                                                className="pb-2 pr-3 text-left font-medium text-neutral-500 dark:text-neutral-400"
+                                            >
+                                                {h}
+                                            </th>
+                                        ))}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {block.rows.map((row, ri) => (
+                                        <tr key={ri} className="border-b border-sidebar-border/30 last:border-0">
+                                            {row.map((cell, ci) => (
+                                                <td
+                                                    key={ci}
+                                                    className="py-2 pr-3 align-top text-neutral-700 dark:text-neutral-300"
+                                                >
+                                                    {cell}
+                                                </td>
+                                            ))}
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    );
+                }
+
+                return null;
+            })}
+        </div>
+    );
+}
+
+function n8nDocLinks(workflow: WorkflowDoc): { href: string; label: string }[] {
+    if (workflow.workflowLinks && workflow.workflowLinks.length > 0) {
+        return workflow.workflowLinks;
+    }
+
+    if (workflow.workflowUrl) {
+        return [{ href: workflow.workflowUrl, label: 'Открыть workflow в n8n' }];
+    }
+
+    return [];
+}
+
+function WorkflowCard({ workflow }: { workflow: WorkflowDoc }) {
+    const [open, setOpen] = useState(false);
+    const links = n8nDocLinks(workflow);
+
+    return (
+        <Collapsible open={open} onOpenChange={setOpen}>
+            <CollapsibleTrigger className="group flex w-full items-center gap-3 rounded-lg border border-sidebar-border/70 bg-background px-4 py-3 text-left transition-colors hover:bg-neutral-50/80 dark:border-sidebar-border dark:hover:bg-neutral-900/50">
+                <Workflow className="h-4 w-4 shrink-0 text-neutral-400" />
+                <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-sm font-semibold">{workflow.name}</span>
+                        <span className="rounded bg-neutral-100 px-1.5 py-0.5 font-mono text-xs text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400">
+                            {workflow.trigger}
+                        </span>
+                    </div>
+                    <p className="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">{workflow.description}</p>
+                    {links.length > 0 ? (
+                        <div className="mt-1.5 flex flex-col gap-1">
+                            {links.map((link) => (
+                                <a
+                                    key={`${link.href}-${link.label}`}
+                                    href={link.href}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:underline dark:text-blue-400"
+                                    onClick={(e) => e.stopPropagation()}
+                                >
+                                    <ExternalLink className="h-3 w-3 shrink-0" aria-hidden />
+                                    {link.label}
+                                </a>
+                            ))}
+                        </div>
+                    ) : null}
+                </div>
+                {open ? (
+                    <ChevronDown className="h-4 w-4 shrink-0 text-neutral-400" />
+                ) : (
+                    <ChevronRight className="h-4 w-4 shrink-0 text-neutral-400" />
+                )}
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+                <div className="mt-1 rounded-lg border border-sidebar-border/50 bg-neutral-50/80 p-4 dark:border-sidebar-border/40 dark:bg-neutral-900/40">
+                    <ol className="space-y-2">
+                        {workflow.steps.map((step, i) => (
+                            <li key={i} className="flex items-start gap-3 text-sm text-neutral-700 dark:text-neutral-300">
+                                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-neutral-200 text-xs font-medium text-neutral-600 dark:bg-neutral-700 dark:text-neutral-400">
+                                    {i + 1}
+                                </span>
+                                {step}
+                            </li>
+                        ))}
+                    </ol>
+                    {workflow.detailBlocks && workflow.detailBlocks.length > 0 ? (
+                        <WorkflowDetailBlocks blocks={workflow.detailBlocks} />
+                    ) : null}
+                </div>
+            </CollapsibleContent>
+        </Collapsible>
+    );
+}
+
+function PageContent({
+    page,
+    documentationCoolifyPanelUrl = null,
+    documentationResourcesUnlocked = false,
+    documentationResourceSecrets = null,
+}: {
+    page: DocPage;
+    documentationCoolifyPanelUrl?: string | null;
+    documentationResourcesUnlocked?: boolean;
+    documentationResourceSecrets?: DocumentationResourceSecrets | null;
+}) {
+    const { content } = page;
+
+    if (content.type === 'overview') {
+        return (
+            <div className="max-w-3xl">
+                <div className="mb-6">
+                    <div className="flex items-center gap-2.5">
+                        <page.icon className="h-6 w-6 text-neutral-400" />
+                        <h1 className="text-lg font-semibold">{page.title}</h1>
+                    </div>
+                    <p className="mt-2 text-sm text-neutral-500 dark:text-neutral-400">
+                        Концепция ИИ-ассистента «Виктория» и связь экранов админки с таблицами данных.
+                    </p>
+                </div>
+                <WorkflowDetailBlocks blocks={content.blocks} standalone />
+                <OverviewInfrastructureLinks coolifyPanelUrl={documentationCoolifyPanelUrl} />
+                <DocumentationInfrastructureVault
+                    unlocked={documentationResourcesUnlocked}
+                    secrets={documentationResourceSecrets}
+                    coolifyPanelUrl={documentationCoolifyPanelUrl}
+                />
+            </div>
+        );
+    }
+
+    if (content.type === 'tables') {
+        return (
+            <div className="space-y-10">
+                {content.sections.map((section) => (
+                    <div key={section.id}>
+                        <div className="mb-3 flex items-center gap-2.5">
+                            <section.icon className="h-5 w-5 text-neutral-400" />
+                            <h2 className="text-base font-semibold">{section.title}</h2>
+                        </div>
+                        <p className="mb-4 text-sm text-neutral-500 dark:text-neutral-400">{section.description}</p>
+                        <div className="space-y-2">
+                            {section.tables.map((table) => (
+                                <TableCard key={table.name} table={table} />
+                            ))}
+                        </div>
+                    </div>
+                ))}
+            </div>
+        );
+    }
+
+    return (
+        <div className="space-y-10">
+            {content.sections.map((section) => (
+                <div key={section.id}>
+                    <div className="mb-3 flex items-center gap-2.5">
+                        <section.icon className="h-5 w-5 text-neutral-400" />
+                        <h2 className="text-base font-semibold">{section.title}</h2>
+                    </div>
+                    <p className="mb-4 text-sm text-neutral-500 dark:text-neutral-400">{section.description}</p>
+                    <div className="space-y-2">
+                        {section.workflows.map((workflow) => (
+                            <WorkflowCard key={workflow.name} workflow={workflow} />
+                        ))}
+                    </div>
+                </div>
+            ))}
+        </div>
+    );
+}
+
+// ─── Page ────────────────────────────────────────────────────────────────────
+
+export default function Documentation({
+    documentationCoolifyPanelUrl = null,
+    documentationResourcesUnlocked = false,
+    documentationResourceSecrets = null,
+}: {
+    documentationCoolifyPanelUrl?: string | null;
+    documentationResourcesUnlocked?: boolean;
+    documentationResourceSecrets?: DocumentationResourceSecrets | null;
+}) {
+    const [activeId, setActiveId] = useState(pages[0].id);
+    const activePage = pages.find((p) => p.id === activeId) ?? pages[0];
+
+    return (
+        <div className="flex h-full min-h-0 flex-1 overflow-hidden rounded-2xl bg-neutral-50/50 dark:bg-neutral-950/50">
+            <Head title={`Документация — ${activePage.title}`} />
+
+            {/* Left nav — mirrors main app sidebar style */}
+            <nav className="flex w-52 shrink-0 flex-col border-r border-sidebar-border/70 dark:border-sidebar-border">
+                <SidebarGroup className="px-2 py-3">
+                    <SidebarGroupLabel>Документация</SidebarGroupLabel>
+                    <SidebarMenu>
+                        {pages.map((page) => (
+                            <SidebarMenuItem key={page.id}>
+                                <SidebarMenuButton
+                                    isActive={activeId === page.id}
+                                    onClick={() => setActiveId(page.id)}
+                                    tooltip={{ children: page.title }}
+                                >
+                                    <page.icon />
+                                    <span>{page.title}</span>
+                                </SidebarMenuButton>
+                            </SidebarMenuItem>
+                        ))}
+                    </SidebarMenu>
+                </SidebarGroup>
+            </nav>
+
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto p-6">
+                <PageContent
+                    key={activePage.id}
+                    page={activePage}
+                    documentationCoolifyPanelUrl={documentationCoolifyPanelUrl}
+                    documentationResourcesUnlocked={documentationResourcesUnlocked}
+                    documentationResourceSecrets={documentationResourceSecrets}
+                />
+            </div>
+        </div>
+    );
+}
+
+Documentation.layout = {
+    breadcrumbs: [
+        {
+            title: 'Документация',
+            href: documentation(),
+        },
+    ],
+};

@@ -172,4 +172,86 @@ class SupabaseEscalationMessageClient
             'error' => null,
         ];
     }
+
+    /**
+     * @return array{ok: bool, count: int, error: ?string}
+     */
+    public function count(): array
+    {
+        if ($this->usesDatabaseDriver()) {
+            try {
+                return [
+                    'ok' => true,
+                    'count' => (int) EscalationMessage::query()->count(),
+                    'error' => null,
+                ];
+            } catch (QueryException $exception) {
+                Log::warning('supabase.escalation_message.database_count_failed', [
+                    'message' => $exception->getMessage(),
+                ]);
+
+                return [
+                    'ok' => false,
+                    'count' => 0,
+                    'error' => 'Не удалось подсчитать обращения в базе данных.',
+                ];
+            }
+        }
+
+        $baseUrl = rtrim((string) config('supabase.url'), '/');
+        $table = (string) config('supabase.escalation_message.table', 'escalation_message');
+        $key = $this->resolveApiKey();
+
+        if ($baseUrl === '' || $table === '' || $key === null || $key === '') {
+            return [
+                'ok' => false,
+                'count' => 0,
+                'error' => 'Supabase не настроен: задайте SUPABASE_URL и SUPABASE_CLIENT_ANON_KEY или SUPABASE_ANON_KEY.',
+            ];
+        }
+
+        $timeout = max(5, (int) config('supabase.escalation_message.fetch_timeout_seconds', 60));
+        $url = $baseUrl.'/rest/v1/'.$table;
+
+        $response = Http::timeout($timeout)
+            ->withHeaders([
+                'apikey' => $key,
+                'Authorization' => 'Bearer '.$key,
+                'Accept' => 'application/json',
+                'Prefer' => 'count=exact',
+            ])
+            ->get($url, [
+                'select' => '*',
+                'limit' => 0,
+            ]);
+
+        if (! $response->successful()) {
+            Log::warning('supabase.escalation_message.count_request_failed', [
+                'status' => $response->status(),
+                'body' => $response->body(),
+            ]);
+
+            return [
+                'ok' => false,
+                'count' => 0,
+                'error' => 'Не удалось подсчитать обращения в Supabase.',
+            ];
+        }
+
+        $total = PostgrestContentRange::parseTotal($response->header('Content-Range'));
+
+        if ($total === null) {
+            return [
+                'ok' => false,
+                'count' => 0,
+                'error' => 'Некорректный ответ Supabase при подсчёте обращений.',
+            ];
+        }
+
+        return [
+            'ok' => true,
+            'count' => $total,
+            'error' => null,
+        ];
+    }
 }

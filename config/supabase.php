@@ -6,8 +6,11 @@ return [
     | Режим доступа к данным Supabase
     |--------------------------------------------------------------------------
     |
-    | database - прямое подключение к PostgreSQL через Laravel models/query builder
-    | postgrest - текущий HTTP-клиент к /rest/v1 (обратная совместимость)
+    | database — прямое подключение к PostgreSQL через Laravel (models / query
+    | builder). Нужны только DB_* и при необходимости SUPABASE_DB_CONNECTION;
+    | SUPABASE_URL и API-ключи не используются.
+    |
+    | postgrest — HTTP-клиент к PostgREST (/rest/v1); нужны SUPABASE_URL и ключ.
     |
     */
     'driver' => env('SUPABASE_DRIVER', 'postgrest'),
@@ -15,23 +18,23 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Supabase project (PostgREST)
+    | Supabase project (PostgREST only)
     |--------------------------------------------------------------------------
     |
-    | URL вида https://xxxx.supabase.co или ваш кастомный домен, например
-    | https://supabase.nhc.live — без завершающего слэша.
+    | Используются только при driver = postgrest. При database игнорируются.
+    |
+    | URL вида https://xxxx.supabase.co или кастомный домен — без слэша в конце.
     |
     */
     'url' => env('SUPABASE_URL', 'https://supabase.nhc.live'),
 
     /*
     |--------------------------------------------------------------------------
-    | API keys
+    | API keys (PostgREST only)
     |--------------------------------------------------------------------------
     |
-    | Для чтения на сервере с фильтром по пользователю чаще нужен service_role
-    | (только в .env, никогда во фронте). Если RLS настроен на anon + JWT —
-    | можно использовать SUPABASE_ANON_KEY и доработать запрос под ваш случай.
+    | При driver = database не читаются. При postgrest: service_role для сервера,
+    | либо anon при настроенном RLS. Не публикуйте ключи во фронтенд.
     |
     */
     'anon_key' => env('SUPABASE_ANON_KEY'),
@@ -157,6 +160,30 @@ return [
         'fetch_max_batches' => (int) env('SUPABASE_ESCALATION_MESSAGE_FETCH_MAX_BATCHES', 50),
 
         'fetch_timeout_seconds' => (int) env('SUPABASE_ESCALATION_MESSAGE_FETCH_TIMEOUT', 60),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Таблица user_profile — страница «Профили пользователей»
+    |--------------------------------------------------------------------------
+    |
+    | Журнал заметок об участниках из бота (инструмент user_profile в n8n).
+    |
+    */
+    'user_profile' => [
+        'table' => env('SUPABASE_USER_PROFILE_TABLE', 'user_profile'),
+
+        'username_column' => env('SUPABASE_USER_PROFILE_USERNAME_COLUMN', 'username'),
+
+        'description_column' => env('SUPABASE_USER_PROFILE_DESCRIPTION_COLUMN', 'description'),
+
+        'created_at_column' => env('SUPABASE_USER_PROFILE_CREATED_AT_COLUMN', 'created_at'),
+
+        'fetch_batch_size' => (int) env('SUPABASE_USER_PROFILE_FETCH_BATCH_SIZE', 1000),
+
+        'fetch_max_batches' => (int) env('SUPABASE_USER_PROFILE_FETCH_MAX_BATCHES', 50),
+
+        'fetch_timeout_seconds' => (int) env('SUPABASE_USER_PROFILE_FETCH_TIMEOUT', 60),
     ],
 
 ];

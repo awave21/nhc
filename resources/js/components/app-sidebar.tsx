@@ -1,5 +1,12 @@
 import { Link } from '@inertiajs/react';
-import { ClipboardList, LayoutGrid, MessageCircle, MessageSquareWarning } from 'lucide-react';
+import {
+    BookOpen,
+    ClipboardList,
+    LayoutGrid,
+    MessageCircle,
+    MessageSquareWarning,
+    UserCircle,
+} from 'lucide-react';
 import AppLogo from '@/components/app-logo';
 import { NavFooter } from '@/components/nav-footer';
 import { NavMain } from '@/components/nav-main';
@@ -13,7 +20,7 @@ import {
     SidebarMenuButton,
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
-import { appeals, dashboard, dialogi, order } from '@/routes';
+import { appeals, dashboard, dialogi, documentation, order, userProfiles } from '@/routes';
 import type { NavItem } from '@/types';
 
 const mainNavItems: NavItem[] = [
@@ -33,9 +40,19 @@ const mainNavItems: NavItem[] = [
         icon: ClipboardList,
     },
     {
+        title: 'Профили пользователей',
+        href: userProfiles(),
+        icon: UserCircle,
+    },
+    {
         title: 'Обращения',
         href: appeals(),
         icon: MessageSquareWarning,
+    },
+    {
+        title: 'Документация',
+        href: documentation(),
+        icon: BookOpen,
     },
 ];
 

@@ -2,15 +2,15 @@
 
 namespace App\Services\Supabase;
 
-use App\Models\Supabase\EventRegistration;
+use App\Models\Supabase\UserProfile;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
-class SupabaseEventRegistrationsClient
+class SupabaseUserProfileClient
 {
     /**
-     * Полная выгрузка `event_registrations` чанками (limit/offset).
+     * Полная выгрузка `user_profile` чанками (limit/offset).
      *
      * @return array{ok: bool, rows: list<array<string, mixed>>, error: ?string}
      */
@@ -21,7 +21,7 @@ class SupabaseEventRegistrationsClient
         }
 
         $baseUrl = rtrim((string) config('supabase.url'), '/');
-        $table = (string) config('supabase.event_registrations.table', 'event_registrations');
+        $table = (string) config('supabase.user_profile.table', 'user_profile');
         $key = $this->resolveApiKey();
 
         if ($baseUrl === '' || $table === '' || $key === null || $key === '') {
@@ -32,9 +32,9 @@ class SupabaseEventRegistrationsClient
             ];
         }
 
-        $batchSize = max(1, (int) config('supabase.event_registrations.fetch_batch_size', 1000));
-        $maxBatches = max(1, (int) config('supabase.event_registrations.fetch_max_batches', 50));
-        $timeout = max(5, (int) config('supabase.event_registrations.fetch_timeout_seconds', 60));
+        $batchSize = max(1, (int) config('supabase.user_profile.fetch_batch_size', 1000));
+        $maxBatches = max(1, (int) config('supabase.user_profile.fetch_max_batches', 50));
+        $timeout = max(5, (int) config('supabase.user_profile.fetch_timeout_seconds', 60));
 
         $url = $baseUrl.'/rest/v1/'.$table;
         $rows = [];
@@ -54,7 +54,7 @@ class SupabaseEventRegistrationsClient
                 ]);
 
             if (! $response->successful()) {
-                Log::warning('supabase.event_registrations.request_failed', [
+                Log::warning('supabase.user_profile.request_failed', [
                     'status' => $response->status(),
                     'body' => $response->body(),
                     'offset' => $offset,
@@ -63,7 +63,7 @@ class SupabaseEventRegistrationsClient
                 return [
                     'ok' => false,
                     'rows' => [],
-                    'error' => 'Не удалось загрузить заявки из Supabase.',
+                    'error' => 'Не удалось загрузить профили из Supabase.',
                 ];
             }
 
@@ -128,18 +128,18 @@ class SupabaseEventRegistrationsClient
      */
     private function fetchAllFromDatabase(): array
     {
-        $batchSize = max(1, (int) config('supabase.event_registrations.fetch_batch_size', 1000));
-        $maxBatches = max(1, (int) config('supabase.event_registrations.fetch_max_batches', 50));
+        $batchSize = max(1, (int) config('supabase.user_profile.fetch_batch_size', 1000));
+        $maxBatches = max(1, (int) config('supabase.user_profile.fetch_max_batches', 50));
         $rows = [];
         $offset = 0;
 
         try {
             for ($batchIndex = 0; $batchIndex < $maxBatches; $batchIndex++) {
-                $chunk = EventRegistration::query()
+                $chunk = UserProfile::query()
                     ->offset($offset)
                     ->limit($batchSize)
                     ->get()
-                    ->map(fn (EventRegistration $row): array => $row->attributesToArray())
+                    ->map(fn (UserProfile $row): array => $row->attributesToArray())
                     ->all();
 
                 if ($chunk === []) {
@@ -155,102 +155,20 @@ class SupabaseEventRegistrationsClient
                 }
             }
         } catch (QueryException $exception) {
-            Log::warning('supabase.event_registrations.database_query_failed', [
+            Log::warning('supabase.user_profile.database_query_failed', [
                 'message' => $exception->getMessage(),
             ]);
 
             return [
                 'ok' => false,
                 'rows' => [],
-                'error' => 'Не удалось загрузить заявки из базы данных.',
+                'error' => 'Не удалось загрузить профили из базы данных.',
             ];
         }
 
         return [
             'ok' => true,
             'rows' => $rows,
-            'error' => null,
-        ];
-    }
-
-    /**
-     * @return array{ok: bool, count: int, error: ?string}
-     */
-    public function count(): array
-    {
-        if ($this->usesDatabaseDriver()) {
-            try {
-                return [
-                    'ok' => true,
-                    'count' => (int) EventRegistration::query()->count(),
-                    'error' => null,
-                ];
-            } catch (QueryException $exception) {
-                Log::warning('supabase.event_registrations.database_count_failed', [
-                    'message' => $exception->getMessage(),
-                ]);
-
-                return [
-                    'ok' => false,
-                    'count' => 0,
-                    'error' => 'Не удалось подсчитать заявки в базе данных.',
-                ];
-            }
-        }
-
-        $baseUrl = rtrim((string) config('supabase.url'), '/');
-        $table = (string) config('supabase.event_registrations.table', 'event_registrations');
-        $key = $this->resolveApiKey();
-
-        if ($baseUrl === '' || $table === '' || $key === null || $key === '') {
-            return [
-                'ok' => false,
-                'count' => 0,
-                'error' => 'Supabase не настроен: задайте SUPABASE_URL и SUPABASE_CLIENT_ANON_KEY или SUPABASE_ANON_KEY.',
-            ];
-        }
-
-        $timeout = max(5, (int) config('supabase.event_registrations.fetch_timeout_seconds', 60));
-        $url = $baseUrl.'/rest/v1/'.$table;
-
-        $response = Http::timeout($timeout)
-            ->withHeaders([
-                'apikey' => $key,
-                'Authorization' => 'Bearer '.$key,
-                'Accept' => 'application/json',
-                'Prefer' => 'count=exact',
-            ])
-            ->get($url, [
-                'select' => '*',
-                'limit' => 0,
-            ]);
-
-        if (! $response->successful()) {
-            Log::warning('supabase.event_registrations.count_request_failed', [
-                'status' => $response->status(),
-                'body' => $response->body(),
-            ]);
-
-            return [
-                'ok' => false,
-                'count' => 0,
-                'error' => 'Не удалось подсчитать заявки в Supabase.',
-            ];
-        }
-
-        $total = PostgrestContentRange::parseTotal($response->header('Content-Range'));
-
-        if ($total === null) {
-            return [
-                'ok' => false,
-                'count' => 0,
-                'error' => 'Некорректный ответ Supabase при подсчёте заявок.',
-            ];
-        }
-
-        return [
-            'ok' => true,
-            'count' => $total,
             'error' => null,
         ];
     }

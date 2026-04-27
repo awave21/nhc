@@ -467,4 +467,87 @@ class SupabaseDialogsClient
 
         return $query;
     }
+
+    /**
+     * Число строк в таблице диалогов (с теми же фильтрами, что и список).
+     *
+     * @return array{ok: bool, count: int, error: ?string}
+     */
+    public function count(?User $user): array
+    {
+        if ($this->usesDatabaseDriver()) {
+            try {
+                return [
+                    'ok' => true,
+                    'count' => (int) $this->buildDatabaseQuery($user)->count(),
+                    'error' => null,
+                ];
+            } catch (QueryException $exception) {
+                Log::warning('supabase.dialogs.database_count_failed', [
+                    'message' => $exception->getMessage(),
+                ]);
+
+                return [
+                    'ok' => false,
+                    'count' => 0,
+                    'error' => 'Не удалось подсчитать диалоги в базе данных.',
+                ];
+            }
+        }
+
+        $setup = $this->validateAndBuildUrl($user);
+
+        if ($setup === null) {
+            return [
+                'ok' => false,
+                'count' => 0,
+                'error' => 'Supabase не настроен: задайте SUPABASE_URL и SUPABASE_SERVICE_ROLE_KEY или SUPABASE_ANON_KEY в .env.',
+            ];
+        }
+
+        ['url' => $url, 'key' => $key, 'query' => $baseQuery] = $setup;
+        $timeout = max(5, (int) config('supabase.dialogs.fetch_timeout_seconds', 60));
+
+        $query = array_merge($baseQuery, [
+            'limit' => 0,
+        ]);
+
+        $response = Http::timeout($timeout)
+            ->withHeaders([
+                'apikey' => $key,
+                'Authorization' => 'Bearer '.$key,
+                'Accept' => 'application/json',
+                'Prefer' => 'count=exact',
+            ])
+            ->get($url, $query);
+
+        if (! $response->successful()) {
+            Log::warning('supabase.dialogs.count_request_failed', [
+                'status' => $response->status(),
+                'body' => $response->body(),
+            ]);
+
+            return [
+                'ok' => false,
+                'count' => 0,
+                'error' => 'Не удалось подсчитать диалоги в Supabase.',
+            ];
+        }
+
+        $total = PostgrestContentRange::parseTotal($response->header('Content-Range'));
+
+        if ($total === null) {
+            return [
+                'ok' => false,
+                'count' => 0,
+                'error' => 'Некорректный ответ Supabase при подсчёте диалогов.',
+            ];
+        }
+
+        return [
+            'ok' => true,
+            'count' => $total,
+            'error' => null,
+        ];
+    }
 }

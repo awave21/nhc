@@ -135,18 +135,6 @@ function rowSearchBlob(row: Record<string, unknown>, columns: string[]): string 
         .join('\u0000');
 }
 
-function readRowQueryParamFromWindow(): string | null {
-    if (typeof window === 'undefined') {
-        return null;
-    }
-
-    try {
-        return new URL(window.location.href).searchParams.get('row');
-    } catch {
-        return null;
-    }
-}
-
 /**
  * Значение и тип query для ссылки «Диалог»:
  * сначала «канонические» поля выбранного режима, затем колонка из .env как fallback;
@@ -247,12 +235,13 @@ export default function Appeals({
     const [sheetSuppressUntilUrlCleared, setSheetSuppressUntilUrlCleared] =
         useState(false);
 
+    /**
+     * Используем page.url от Inertia как единственный источник истины.
+     * window.location.href может обновляться асинхронно относительно Inertia-контекста,
+     * что приводило к race-condition: шит снова открывался после закрытия.
+     */
     const highlightRowId = useMemo(() => {
         void locationVersion;
-
-        if (typeof window !== 'undefined') {
-            return readRowQueryParamFromWindow();
-        }
 
         try {
             return new URL(page.url, 'http://localhost').searchParams.get('row');
