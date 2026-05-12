@@ -2,6 +2,7 @@ import { Link } from '@inertiajs/react';
 import {
     BookOpen,
     ClipboardList,
+    Database,
     LayoutGrid,
     MessageCircle,
     MessageSquareWarning,
@@ -21,6 +22,7 @@ import {
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
 import { appeals, dashboard, dialogi, documentation, order, userProfiles } from '@/routes';
+import handbooks from '@/routes/handbooks';
 import type { NavItem } from '@/types';
 
 const mainNavItems: NavItem[] = [
@@ -53,6 +55,11 @@ const mainNavItems: NavItem[] = [
         title: 'Документация',
         href: documentation(),
         icon: BookOpen,
+    },
+    {
+        title: 'Справочники',
+        href: handbooks.index(),
+        icon: Database,
     },
 ];
 

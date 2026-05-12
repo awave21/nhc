@@ -24,4 +24,7 @@ if [ -n "${APP_KEY}" ]; then
     php artisan view:cache --no-interaction || true
 fi
 
+# Запускаем миграции при каждом старте контейнера (идемпотентны).
+php artisan migrate --force --no-interaction || true
+
 exec "$@"

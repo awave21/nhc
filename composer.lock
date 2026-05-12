@@ -6546,16 +6546,16 @@
         },
         {
             "name": "laravel/boost",
-            "version": "v2.4.2",
+            "version": "v2.4.6",
             "source": {
                 "type": "git",
                 "url": "https://github.com/laravel/boost.git",
-                "reference": "74fedf18048d382e04eded004abe2ad1ee1d9a97"
+                "reference": "c9ea6368c66f7c0e6a9b26706b401de900cdb9ac"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/laravel/boost/zipball/74fedf18048d382e04eded004abe2ad1ee1d9a97",
-                "reference": "74fedf18048d382e04eded004abe2ad1ee1d9a97",
+                "url": "https://api.github.com/repos/laravel/boost/zipball/c9ea6368c66f7c0e6a9b26706b401de900cdb9ac",
+                "reference": "c9ea6368c66f7c0e6a9b26706b401de900cdb9ac",
                 "shasum": ""
             },
             "require": {
@@ -6564,7 +6564,7 @@
                 "illuminate/contracts": "^11.45.3|^12.41.1|^13.0",
                 "illuminate/routing": "^11.45.3|^12.41.1|^13.0",
                 "illuminate/support": "^11.45.3|^12.41.1|^13.0",
-                "laravel/mcp": "^0.5.1|^0.6.0",
+                "laravel/mcp": "^0.5.1|^0.6.0|^0.7.0",
                 "laravel/prompts": "^0.3.10",
                 "laravel/roster": "^0.5.0",
                 "php": "^8.2"
@@ -6608,7 +6608,7 @@
                 "issues": "https://github.com/laravel/boost/issues",
                 "source": "https://github.com/laravel/boost"
             },
-            "time": "2026-04-07T14:34:49+00:00"
+            "time": "2026-04-28T11:52:01+00:00"
         },
         {
             "name": "laravel/mcp",
