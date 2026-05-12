@@ -34,4 +34,23 @@ class HandbookItemController extends Controller
 
         return back();
     }
+
+    public function destroyAll(KnowledgeBase $knowledgeBase): RedirectResponse
+    {
+        $knowledgeBase->items()->delete();
+
+        return back();
+    }
+
+    public function destroyBulk(KnowledgeBase $knowledgeBase): RedirectResponse
+    {
+        $ids = request()->validate([
+            'ids' => ['required', 'array', 'min:1'],
+            'ids.*' => ['integer'],
+        ])['ids'];
+
+        $knowledgeBase->items()->whereIn('id', $ids)->delete();
+
+        return back();
+    }
 }
