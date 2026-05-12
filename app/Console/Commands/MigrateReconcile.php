@@ -49,11 +49,16 @@ class MigrateReconcile extends Command
             $inserted++;
         }
 
-        // Особый случай: миграция two_factor добавляет колонки в users.
+        // Миграция two_factor делает ALTER TABLE users. Если таблица users уже
+        // существует (создана другим owner'ом / в Supabase), Laravel-пользователь
+        // не сможет её ALTER'ить. Помечаем как применённую — 2FA фичи в этом случае
+        // не будут работать, но деплой не падает. Если колонки реально нет, их можно
+        // добавить вручную через SQL editor с правами owner.
         $twoFactor = '2025_08_14_170933_add_two_factor_columns_to_users_table';
-        if (! in_array($twoFactor, $existing, true) && Schema::hasColumn('users', 'two_factor_secret')) {
+        if (! in_array($twoFactor, $existing, true) && Schema::hasTable('users')) {
             DB::table('migrations')->insert(['migration' => $twoFactor, 'batch' => 0]);
-            $this->info("Marked as applied: {$twoFactor} (column users.two_factor_secret exists)");
+            $hasCol = Schema::hasColumn('users', 'two_factor_secret');
+            $this->info("Marked as applied: {$twoFactor}".($hasCol ? '' : ' (warning: 2FA columns not present, feature will be unavailable)'));
             $inserted++;
         }
 
