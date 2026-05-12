@@ -39,9 +39,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('handbooks/{knowledgeBase}', HandbookItemsController::class)->name('handbooks.show');
     Route::post('handbooks/{knowledgeBase}/items', [HandbookItemController::class, 'store'])->name('handbooks.items.store');
     Route::put('handbooks/{knowledgeBase}/items/{item}', [HandbookItemController::class, 'update'])->name('handbooks.items.update');
-    Route::delete('handbooks/{knowledgeBase}/items/bulk', [HandbookItemController::class, 'destroyBulk'])->name('handbooks.items.destroyBulk');
-    Route::delete('handbooks/{knowledgeBase}/items/all', [HandbookItemController::class, 'destroyAll'])->name('handbooks.items.destroyAll');
     Route::delete('handbooks/{knowledgeBase}/items/{item}', [HandbookItemController::class, 'destroy'])->name('handbooks.items.destroy');
+    Route::delete('handbooks/{knowledgeBase}/items', [HandbookItemController::class, 'destroyAll'])->name('handbooks.items.destroyAll');
+    Route::delete('handbooks/{knowledgeBase}/items/bulk', [HandbookItemController::class, 'destroyBulk'])->name('handbooks.items.destroyBulk');
     Route::get('handbooks/{knowledgeBase}/export', HandbookExportController::class)->name('handbooks.export');
     Route::post('handbooks/{knowledgeBase}/import', HandbookImportController::class)->name('handbooks.import');
 });

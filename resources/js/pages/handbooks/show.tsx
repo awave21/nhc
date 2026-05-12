@@ -145,9 +145,16 @@ function DeleteBulkDialog({ handbookId, selectedIds, onSuccess }: { handbookId: 
     const [open, setOpen] = useState(false);
     const all = selectedIds.length === 0;
 
-    const formProps = all
-        ? HandbookItemController.destroyAll.form(handbookId)
-        : HandbookItemController.destroyBulk.form(handbookId);
+    const handleDelete = () => {
+        const url = all
+            ? HandbookItemController.destroyAll.url(handbookId)
+            : HandbookItemController.destroyBulk.url(handbookId);
+        router.delete(url, {
+            data: all ? {} : { ids: selectedIds },
+            preserveScroll: true,
+            onSuccess: () => { setOpen(false); onSuccess(); },
+        });
+    };
 
     return (
         <Dialog open={open} onOpenChange={setOpen}>
@@ -166,25 +173,12 @@ function DeleteBulkDialog({ handbookId, selectedIds, onSuccess }: { handbookId: 
                             : `Будет удалено ${selectedIds.length} записей. Это действие нельзя отменить.`}
                     </DialogDescription>
                 </DialogHeader>
-                <Form
-                    {...formProps}
-                    options={{ preserveScroll: true }}
-                    onSuccess={() => { setOpen(false); onSuccess(); }}
-                >
-                    {({ processing }) => (
-                        <>
-                            {!all && selectedIds.map((id) => (
-                                <input key={id} type="hidden" name="ids[]" value={id} />
-                            ))}
-                            <DialogFooter>
-                                <DialogClose asChild>
-                                    <Button variant="secondary" type="button">Отмена</Button>
-                                </DialogClose>
-                                <Button variant="destructive" disabled={processing}>Удалить</Button>
-                            </DialogFooter>
-                        </>
-                    )}
-                </Form>
+                <DialogFooter>
+                    <DialogClose asChild>
+                        <Button variant="secondary" type="button">Отмена</Button>
+                    </DialogClose>
+                    <Button variant="destructive" onClick={handleDelete}>Удалить</Button>
+                </DialogFooter>
             </DialogContent>
         </Dialog>
     );
