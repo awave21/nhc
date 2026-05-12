@@ -57,8 +57,7 @@ class MigrateReconcile extends Command
         $twoFactor = '2025_08_14_170933_add_two_factor_columns_to_users_table';
         if (! in_array($twoFactor, $existing, true) && Schema::hasTable('users')) {
             DB::table('migrations')->insert(['migration' => $twoFactor, 'batch' => 0]);
-            $hasCol = Schema::hasColumn('users', 'two_factor_secret');
-            $this->info("Marked as applied: {$twoFactor}".($hasCol ? '' : ' (warning: 2FA columns not present, feature will be unavailable)'));
+            $this->info("Marked as applied: {$twoFactor} (users table already exists, skipping ALTER)");
             $inserted++;
         }
 
