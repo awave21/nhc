@@ -24,6 +24,10 @@ if [ -n "${APP_KEY}" ]; then
     php artisan view:cache --no-interaction || true
 fi
 
+# Если в БД уже есть таблицы (предыдущий деплой / ручной импорт), помечаем
+# соответствующие миграции как применённые, чтобы migrate не пытался их перенакатывать.
+php artisan migrate:reconcile --no-interaction || true
+
 # Запускаем миграции при каждом старте контейнера (идемпотентны).
 php artisan migrate --force --no-interaction || true
 
