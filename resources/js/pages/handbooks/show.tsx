@@ -1,6 +1,6 @@
 import { Form, Head, router, setLayoutProps } from '@inertiajs/react';
 import { Check, Clock, Download, Plus, Search, Trash2 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import ImportWizard from '@/components/handbooks/import-wizard';
 
@@ -17,6 +17,7 @@ import {
     DialogTitle,
     DialogTrigger,
 } from '@/components/ui/dialog';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
@@ -140,6 +141,49 @@ function DeleteItemDialog({ item, handbookId }: { item: HandbookItem; handbookId
     );
 }
 
+function DeleteBulkDialog({ handbookId, selectedIds, onSuccess }: { handbookId: number; selectedIds: number[]; onSuccess: () => void }) {
+    const [open, setOpen] = useState(false);
+    const all = selectedIds.length === 0;
+
+    const handleDelete = () => {
+        const url = all
+            ? HandbookItemController.destroyAll.url(handbookId)
+            : HandbookItemController.destroyBulk.url(handbookId);
+        router.delete(url, {
+            data: all ? {} : { ids: selectedIds },
+            preserveScroll: true,
+            onSuccess: () => { setOpen(false); onSuccess(); },
+        });
+    };
+
+    return (
+        <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>
+                <Button variant="destructive" size="sm">
+                    <Trash2 className="mr-1 h-4 w-4" />
+                    {all ? 'Удалить все' : `Удалить (${selectedIds.length})`}
+                </Button>
+            </DialogTrigger>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Удалить записи?</DialogTitle>
+                    <DialogDescription>
+                        {all
+                            ? 'Будут удалены все записи справочника. Это действие нельзя отменить.'
+                            : `Будет удалено ${selectedIds.length} записей. Это действие нельзя отменить.`}
+                    </DialogDescription>
+                </DialogHeader>
+                <DialogFooter>
+                    <DialogClose asChild>
+                        <Button variant="secondary" type="button">Отмена</Button>
+                    </DialogClose>
+                    <Button variant="destructive" onClick={handleDelete}>Удалить</Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
 export default function HandbookShow({ handbook, items, stats }: HandbookShowPageProps) {
     useEffect(() => {
         setLayoutProps({
@@ -164,11 +208,29 @@ export default function HandbookShow({ handbook, items, stats }: HandbookShowPag
 
     const [search, setSearch] = useState('');
     const [selectedItem, setSelectedItem] = useState<HandbookItem | null>(null);
+    const [checkedIds, setCheckedIds] = useState<Set<number>>(new Set());
 
     const q = search.toLowerCase();
     const filtered = q
         ? items.filter((i) => i.question.toLowerCase().includes(q) || i.answer.toLowerCase().includes(q))
         : items;
+
+    const allChecked = filtered.length > 0 && filtered.every((i) => checkedIds.has(i.id));
+    const someChecked = filtered.some((i) => checkedIds.has(i.id));
+
+    const toggleAll = () => {
+        if (allChecked) {
+            setCheckedIds((prev) => { const next = new Set(prev); filtered.forEach((i) => next.delete(i.id)); return next; });
+        } else {
+            setCheckedIds((prev) => { const next = new Set(prev); filtered.forEach((i) => next.add(i.id)); return next; });
+        }
+    };
+
+    const toggleOne = (id: number) => {
+        setCheckedIds((prev) => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next; });
+    };
+
+    const selectedIds = useMemo(() => Array.from(checkedIds), [checkedIds]);
 
     return (
         <>
@@ -177,6 +239,13 @@ export default function HandbookShow({ handbook, items, stats }: HandbookShowPag
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <Heading title={handbook.name} description={handbook.description ?? undefined} />
                     <div className="flex shrink-0 flex-wrap gap-2">
+                        {(someChecked || items.length > 0) && (
+                            <DeleteBulkDialog
+                                handbookId={handbook.id}
+                                selectedIds={someChecked ? selectedIds : []}
+                                onSuccess={() => setCheckedIds(new Set())}
+                            />
+                        )}
                         <a
                             href={handbooks.export(handbook).url}
                             className="inline-flex items-center gap-1 rounded-lg border border-input bg-background px-3 py-1.5 text-sm font-medium hover:bg-accent"
@@ -219,6 +288,14 @@ export default function HandbookShow({ handbook, items, stats }: HandbookShowPag
                     <Table className="min-w-[900px]">
                         <TableHeader>
                             <TableRow>
+                                <TableHead className="w-10" onClick={(e) => e.stopPropagation()}>
+                                    <Checkbox
+                                        checked={allChecked}
+                                        ref={(el) => { if (el) (el as HTMLButtonElement).dataset.indeterminate = String(someChecked && !allChecked); }}
+                                        onCheckedChange={toggleAll}
+                                        aria-label="Выбрать все"
+                                    />
+                                </TableHead>
                                 <TableHead className="min-w-[280px]">Вопрос</TableHead>
                                 <TableHead className="min-w-[320px]">Ответ</TableHead>
                                 <TableHead className="w-32 whitespace-nowrap">Статус</TableHead>
@@ -228,7 +305,7 @@ export default function HandbookShow({ handbook, items, stats }: HandbookShowPag
                         <TableBody>
                             {filtered.length === 0 ? (
                                 <TableRow>
-                                    <TableCell colSpan={4} className="py-10 text-center text-muted-foreground">
+                                    <TableCell colSpan={5} className="py-10 text-center text-muted-foreground">
                                         {search ? 'Ничего не найдено' : 'Записей нет. Добавьте первую.'}
                                     </TableCell>
                                 </TableRow>
@@ -236,9 +313,16 @@ export default function HandbookShow({ handbook, items, stats }: HandbookShowPag
                                 filtered.map((item) => (
                                     <TableRow
                                         key={item.id}
-                                        className={cn('cursor-pointer', selectedItem?.id === item.id && 'bg-primary/5')}
+                                        className={cn('cursor-pointer', selectedItem?.id === item.id && 'bg-primary/5', checkedIds.has(item.id) && 'bg-muted/40')}
                                         onClick={() => setSelectedItem(item)}
                                     >
+                                        <TableCell onClick={(e) => e.stopPropagation()} className="align-top">
+                                            <Checkbox
+                                                checked={checkedIds.has(item.id)}
+                                                onCheckedChange={() => toggleOne(item.id)}
+                                                aria-label="Выбрать запись"
+                                            />
+                                        </TableCell>
                                         <TableCell className="font-medium align-top">{item.question}</TableCell>
                                         <TableCell className="text-muted-foreground align-top">
                                             <span className="line-clamp-2">{item.answer}</span>
