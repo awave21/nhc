@@ -262,6 +262,95 @@ const pages: DocPage[] = [
         },
     },
     {
+        id: 'api',
+        title: 'API справочников',
+        icon: Server,
+        content: {
+            type: 'overview',
+            blocks: [
+                {
+                    type: 'p',
+                    text: 'HTTP-эндпоинты nhc-admin для интеграции справочников Q&A с внешними системами (n8n, агентом «Виктория» через инструмент question_and_answer). Все запросы требуют заголовок Authorization: Bearer <API_TOKEN>; токен задаётся переменной окружения API_TOKEN на сервере. База URL: https://<домен>/api/v1.',
+                },
+                {
+                    type: 'h3',
+                    text: 'Семантический поиск по справочнику',
+                },
+                {
+                    type: 'p',
+                    text: 'POST /api/v1/query ищет ближайшие пары «вопрос — ответ» по эмбеддингам (pgvector, метрика cosine). Используется агентом для рефлекса question_and_answer: для запроса пользователя возвращаются наиболее похожие записи со score (1 — точное совпадение, 0 — полностью разные).',
+                },
+                {
+                    type: 'table',
+                    headers: ['Поле', 'Тип', 'Описание'],
+                    rows: [
+                        ['query', 'string, обязательно, до 1000 символов', 'Текст запроса пользователя'],
+                        ['knowledge_base_id', 'integer, опционально', 'ID справочника для фильтрации; если не передан, ищется по всем'],
+                        ['limit', 'integer, опционально (1–20, по умолчанию 3)', 'Сколько результатов вернуть'],
+                    ],
+                },
+                {
+                    type: 'code',
+                    text: 'curl -X POST https://<домен>/api/v1/query \\\n  -H "Authorization: Bearer $API_TOKEN" \\\n  -H "Content-Type: application/json" \\\n  -d \'{"knowledge_base_id": 1, "query": "Как записаться?", "limit": 3}\'',
+                },
+                {
+                    type: 'p',
+                    text: 'Ответ: { "results": [ { "id": 85, "question": "...", "answer": "...", "score": 0.52 }, ... ] }. Сортировка по убыванию score. Если в БД нет эмбеддингов или используется SQLite — вернётся пустой массив.',
+                },
+                {
+                    type: 'h3',
+                    text: 'Список справочников и записей',
+                },
+                {
+                    type: 'ul',
+                    items: [
+                        'GET /api/v1/knowledge-bases — все справочники (id, name, description, items_count).',
+                        'GET /api/v1/knowledge-bases/{id}/items — записи конкретного справочника (id, question, answer, created_at).',
+                        'GET /api/v1/knowledge-bases/{id}/status — счётчики готовности эмбеддингов: { total, with_embedding, pending, ready }.',
+                    ],
+                },
+                {
+                    type: 'h3',
+                    text: 'Создание, обновление и удаление записей',
+                },
+                {
+                    type: 'p',
+                    text: 'CRUD позволяет вести справочник из внешней системы (например, синхронизировать FAQ из Notion или другой CMS). После создания/изменения записи фоновый job автоматически генерирует эмбеддинг через OpenAI text-embedding-3-small.',
+                },
+                {
+                    type: 'table',
+                    headers: ['Метод', 'Путь', 'Назначение'],
+                    rows: [
+                        ['POST', '/api/v1/knowledge-bases/{id}/items', 'Создать запись (тело: question, answer)'],
+                        ['PUT', '/api/v1/knowledge-bases/{id}/items/{item}', 'Обновить запись (тело: question, answer)'],
+                        ['DELETE', '/api/v1/knowledge-bases/{id}/items/{item}', 'Удалить запись'],
+                    ],
+                },
+                {
+                    type: 'h3',
+                    text: 'Коды ответов',
+                },
+                {
+                    type: 'ul',
+                    items: [
+                        '200/201/204 — успех (для GET/POST/DELETE соответственно).',
+                        '401 — отсутствует или неверный токен в заголовке Authorization.',
+                        '404 — справочник или запись не найдены.',
+                        '422 — ошибка валидации (отсутствует обязательное поле или нарушены ограничения длины).',
+                    ],
+                },
+                {
+                    type: 'h3',
+                    text: 'Использование агентом «Виктория»',
+                },
+                {
+                    type: 'p',
+                    text: 'В n8n инструмент question_and_answer выполняет HTTP Request POST /api/v1/query с фильтром по knowledge_base_id основного справочника, передаёт запрос пользователя в поле query и читает первый элемент results. Если score выше порога (рекомендация 0.3–0.4) — ответ отдаётся как первичный факт; ниже — агент идёт в vector. Эмбеддинги поддерживаются в актуальном состоянии автоматически: при импорте через UI nhc-admin (раздел «Справочники») или через CRUD-эндпоинты задание на генерацию ставится в очередь.',
+                },
+            ],
+        },
+    },
+    {
         id: 'tables',
         title: 'Таблицы',
         icon: Database,
