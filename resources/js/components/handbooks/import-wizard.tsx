@@ -2,6 +2,7 @@ import { router } from '@inertiajs/react';
 import { Trash2, Upload } from 'lucide-react';
 import Papa from 'papaparse';
 import { useMemo, useRef, useState } from 'react';
+import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -47,7 +48,6 @@ export default function ImportWizard({ handbookId }: { handbookId: number }) {
     const [qCol, setQCol] = useState('');
     const [aCol, setACol] = useState('');
     const [rows, setRows] = useState<EditableRow[]>([]);
-    const [submitting, setSubmitting] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const reset = () => {
@@ -59,7 +59,6 @@ export default function ImportWizard({ handbookId }: { handbookId: number }) {
         setQCol('');
         setACol('');
         setRows([]);
-        setSubmitting(false);
         if (fileInputRef.current) {
             fileInputRef.current.value = '';
         }
@@ -140,14 +139,23 @@ export default function ImportWizard({ handbookId }: { handbookId: number }) {
             return;
         }
 
-        setSubmitting(true);
+        const toastId = toast.loading(`Импортируем ${items.length} записей…`);
+        handleOpenChange(false);
+
         router.post(
             handbooks.import(handbookId).url,
             { items },
             {
                 preserveScroll: true,
-                onSuccess: () => handleOpenChange(false),
-                onFinish: () => setSubmitting(false),
+                onSuccess: (page) => {
+                    const message = (page.props.flash as { success?: string } | undefined)?.success
+                        ?? `Импортировано ${items.length} записей`;
+                    toast.success(message, { id: toastId });
+                    router.reload({ only: ['items', 'stats'], preserveScroll: true });
+                },
+                onError: () => {
+                    toast.error('Ошибка импорта', { id: toastId });
+                },
             },
         );
     };
@@ -333,8 +341,8 @@ export default function ImportWizard({ handbookId }: { handbookId: number }) {
                     {step === 'edit' && (
                         <>
                             <Button variant="secondary" onClick={() => setStep('map')}>Назад</Button>
-                            <Button onClick={handleSubmit} disabled={submitting || includedCount === 0}>
-                                {submitting ? 'Импортируем…' : `Импортировать (${includedCount})`}
+                            <Button onClick={handleSubmit} disabled={includedCount === 0}>
+                                {`Импортировать (${includedCount})`}
                             </Button>
                         </>
                     )}
