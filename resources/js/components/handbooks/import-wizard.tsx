@@ -2,7 +2,6 @@ import { router } from '@inertiajs/react';
 import { Trash2, Upload } from 'lucide-react';
 import Papa from 'papaparse';
 import { useMemo, useRef, useState } from 'react';
-import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -139,7 +138,6 @@ export default function ImportWizard({ handbookId }: { handbookId: number }) {
             return;
         }
 
-        const toastId = toast.loading(`Импортируем ${items.length} записей…`);
         handleOpenChange(false);
 
         router.post(
@@ -147,15 +145,7 @@ export default function ImportWizard({ handbookId }: { handbookId: number }) {
             { items },
             {
                 preserveScroll: true,
-                onSuccess: (page) => {
-                    const message = (page.props.flash as { success?: string } | undefined)?.success
-                        ?? `Импортировано ${items.length} записей`;
-                    toast.success(message, { id: toastId });
-                    router.reload({ only: ['items', 'stats'], preserveScroll: true });
-                },
-                onError: () => {
-                    toast.error('Ошибка импорта', { id: toastId });
-                },
+                onSuccess: () => router.reload({ only: ['items', 'stats'], preserveScroll: true }),
             },
         );
     };
