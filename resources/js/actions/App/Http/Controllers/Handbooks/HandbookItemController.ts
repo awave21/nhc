@@ -167,183 +167,6 @@ updateForm.put = (args: { knowledgeBase: string | number | { id: string | number
 update.form = updateForm
 
 /**
-* @see \App\Http\Controllers\Handbooks\HandbookItemController::destroy
-* @see app/Http/Controllers/Handbooks/HandbookItemController.php:31
-* @route '/handbooks/{knowledgeBase}/items/{item}'
-*/
-export const destroy = (args: { knowledgeBase: string | number | { id: string | number }, item: string | number | { id: string | number } } | [knowledgeBase: string | number | { id: string | number }, item: string | number | { id: string | number } ], options?: RouteQueryOptions): RouteDefinition<'delete'> => ({
-    url: destroy.url(args, options),
-    method: 'delete',
-})
-
-destroy.definition = {
-    methods: ["delete"],
-    url: '/handbooks/{knowledgeBase}/items/{item}',
-} satisfies RouteDefinition<["delete"]>
-
-/**
-* @see \App\Http\Controllers\Handbooks\HandbookItemController::destroy
-* @see app/Http/Controllers/Handbooks/HandbookItemController.php:31
-* @route '/handbooks/{knowledgeBase}/items/{item}'
-*/
-destroy.url = (args: { knowledgeBase: string | number | { id: string | number }, item: string | number | { id: string | number } } | [knowledgeBase: string | number | { id: string | number }, item: string | number | { id: string | number } ], options?: RouteQueryOptions) => {
-    if (Array.isArray(args)) {
-        args = {
-            knowledgeBase: args[0],
-            item: args[1],
-        }
-    }
-
-    args = applyUrlDefaults(args)
-
-    const parsedArgs = {
-        knowledgeBase: typeof args.knowledgeBase === 'object'
-        ? args.knowledgeBase.id
-        : args.knowledgeBase,
-        item: typeof args.item === 'object'
-        ? args.item.id
-        : args.item,
-    }
-
-    return destroy.definition.url
-            .replace('{knowledgeBase}', parsedArgs.knowledgeBase.toString())
-            .replace('{item}', parsedArgs.item.toString())
-            .replace(/\/+$/, '') + queryParams(options)
-}
-
-/**
-* @see \App\Http\Controllers\Handbooks\HandbookItemController::destroy
-* @see app/Http/Controllers/Handbooks/HandbookItemController.php:31
-* @route '/handbooks/{knowledgeBase}/items/{item}'
-*/
-destroy.delete = (args: { knowledgeBase: string | number | { id: string | number }, item: string | number | { id: string | number } } | [knowledgeBase: string | number | { id: string | number }, item: string | number | { id: string | number } ], options?: RouteQueryOptions): RouteDefinition<'delete'> => ({
-    url: destroy.url(args, options),
-    method: 'delete',
-})
-
-/**
-* @see \App\Http\Controllers\Handbooks\HandbookItemController::destroy
-* @see app/Http/Controllers/Handbooks/HandbookItemController.php:31
-* @route '/handbooks/{knowledgeBase}/items/{item}'
-*/
-const destroyForm = (args: { knowledgeBase: string | number | { id: string | number }, item: string | number | { id: string | number } } | [knowledgeBase: string | number | { id: string | number }, item: string | number | { id: string | number } ], options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
-    action: destroy.url(args, {
-        [options?.mergeQuery ? 'mergeQuery' : 'query']: {
-            _method: 'DELETE',
-            ...(options?.query ?? options?.mergeQuery ?? {}),
-        }
-    }),
-    method: 'post',
-})
-
-/**
-* @see \App\Http\Controllers\Handbooks\HandbookItemController::destroy
-* @see app/Http/Controllers/Handbooks/HandbookItemController.php:31
-* @route '/handbooks/{knowledgeBase}/items/{item}'
-*/
-destroyForm.delete = (args: { knowledgeBase: string | number | { id: string | number }, item: string | number | { id: string | number } } | [knowledgeBase: string | number | { id: string | number }, item: string | number | { id: string | number } ], options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
-    action: destroy.url(args, {
-        [options?.mergeQuery ? 'mergeQuery' : 'query']: {
-            _method: 'DELETE',
-            ...(options?.query ?? options?.mergeQuery ?? {}),
-        }
-    }),
-    method: 'post',
-})
-
-destroy.form = destroyForm
-
-/**
-* @see \App\Http\Controllers\Handbooks\HandbookItemController::destroyAll
-* @see app/Http/Controllers/Handbooks/HandbookItemController.php:38
-* @route '/handbooks/{knowledgeBase}/items'
-*/
-export const destroyAll = (args: { knowledgeBase: string | number | { id: string | number } } | [knowledgeBase: string | number | { id: string | number } ] | string | number | { id: string | number }, options?: RouteQueryOptions): RouteDefinition<'delete'> => ({
-    url: destroyAll.url(args, options),
-    method: 'delete',
-})
-
-destroyAll.definition = {
-    methods: ["delete"],
-    url: '/handbooks/{knowledgeBase}/items',
-} satisfies RouteDefinition<["delete"]>
-
-/**
-* @see \App\Http\Controllers\Handbooks\HandbookItemController::destroyAll
-* @see app/Http/Controllers/Handbooks/HandbookItemController.php:38
-* @route '/handbooks/{knowledgeBase}/items'
-*/
-destroyAll.url = (args: { knowledgeBase: string | number | { id: string | number } } | [knowledgeBase: string | number | { id: string | number } ] | string | number | { id: string | number }, options?: RouteQueryOptions) => {
-    if (typeof args === 'string' || typeof args === 'number') {
-        args = { knowledgeBase: args }
-    }
-
-    if (typeof args === 'object' && !Array.isArray(args) && 'id' in args) {
-        args = { knowledgeBase: args.id }
-    }
-
-    if (Array.isArray(args)) {
-        args = {
-            knowledgeBase: args[0],
-        }
-    }
-
-    args = applyUrlDefaults(args)
-
-    const parsedArgs = {
-        knowledgeBase: typeof args.knowledgeBase === 'object'
-        ? args.knowledgeBase.id
-        : args.knowledgeBase,
-    }
-
-    return destroyAll.definition.url
-            .replace('{knowledgeBase}', parsedArgs.knowledgeBase.toString())
-            .replace(/\/+$/, '') + queryParams(options)
-}
-
-/**
-* @see \App\Http\Controllers\Handbooks\HandbookItemController::destroyAll
-* @see app/Http/Controllers/Handbooks/HandbookItemController.php:38
-* @route '/handbooks/{knowledgeBase}/items'
-*/
-destroyAll.delete = (args: { knowledgeBase: string | number | { id: string | number } } | [knowledgeBase: string | number | { id: string | number } ] | string | number | { id: string | number }, options?: RouteQueryOptions): RouteDefinition<'delete'> => ({
-    url: destroyAll.url(args, options),
-    method: 'delete',
-})
-
-/**
-* @see \App\Http\Controllers\Handbooks\HandbookItemController::destroyAll
-* @see app/Http/Controllers/Handbooks/HandbookItemController.php:38
-* @route '/handbooks/{knowledgeBase}/items'
-*/
-const destroyAllForm = (args: { knowledgeBase: string | number | { id: string | number } } | [knowledgeBase: string | number | { id: string | number } ] | string | number | { id: string | number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
-    action: destroyAll.url(args, {
-        [options?.mergeQuery ? 'mergeQuery' : 'query']: {
-            _method: 'DELETE',
-            ...(options?.query ?? options?.mergeQuery ?? {}),
-        }
-    }),
-    method: 'post',
-})
-
-/**
-* @see \App\Http\Controllers\Handbooks\HandbookItemController::destroyAll
-* @see app/Http/Controllers/Handbooks/HandbookItemController.php:38
-* @route '/handbooks/{knowledgeBase}/items'
-*/
-destroyAllForm.delete = (args: { knowledgeBase: string | number | { id: string | number } } | [knowledgeBase: string | number | { id: string | number } ] | string | number | { id: string | number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
-    action: destroyAll.url(args, {
-        [options?.mergeQuery ? 'mergeQuery' : 'query']: {
-            _method: 'DELETE',
-            ...(options?.query ?? options?.mergeQuery ?? {}),
-        }
-    }),
-    method: 'post',
-})
-
-destroyAll.form = destroyAllForm
-
-/**
 * @see \App\Http\Controllers\Handbooks\HandbookItemController::destroyBulk
 * @see app/Http/Controllers/Handbooks/HandbookItemController.php:45
 * @route '/handbooks/{knowledgeBase}/items/bulk'
@@ -433,6 +256,183 @@ destroyBulkForm.delete = (args: { knowledgeBase: string | number | { id: string 
 
 destroyBulk.form = destroyBulkForm
 
-const HandbookItemController = { store, update, destroy, destroyAll, destroyBulk }
+/**
+* @see \App\Http\Controllers\Handbooks\HandbookItemController::destroyAll
+* @see app/Http/Controllers/Handbooks/HandbookItemController.php:38
+* @route '/handbooks/{knowledgeBase}/items/all'
+*/
+export const destroyAll = (args: { knowledgeBase: string | number | { id: string | number } } | [knowledgeBase: string | number | { id: string | number } ] | string | number | { id: string | number }, options?: RouteQueryOptions): RouteDefinition<'delete'> => ({
+    url: destroyAll.url(args, options),
+    method: 'delete',
+})
+
+destroyAll.definition = {
+    methods: ["delete"],
+    url: '/handbooks/{knowledgeBase}/items/all',
+} satisfies RouteDefinition<["delete"]>
+
+/**
+* @see \App\Http\Controllers\Handbooks\HandbookItemController::destroyAll
+* @see app/Http/Controllers/Handbooks/HandbookItemController.php:38
+* @route '/handbooks/{knowledgeBase}/items/all'
+*/
+destroyAll.url = (args: { knowledgeBase: string | number | { id: string | number } } | [knowledgeBase: string | number | { id: string | number } ] | string | number | { id: string | number }, options?: RouteQueryOptions) => {
+    if (typeof args === 'string' || typeof args === 'number') {
+        args = { knowledgeBase: args }
+    }
+
+    if (typeof args === 'object' && !Array.isArray(args) && 'id' in args) {
+        args = { knowledgeBase: args.id }
+    }
+
+    if (Array.isArray(args)) {
+        args = {
+            knowledgeBase: args[0],
+        }
+    }
+
+    args = applyUrlDefaults(args)
+
+    const parsedArgs = {
+        knowledgeBase: typeof args.knowledgeBase === 'object'
+        ? args.knowledgeBase.id
+        : args.knowledgeBase,
+    }
+
+    return destroyAll.definition.url
+            .replace('{knowledgeBase}', parsedArgs.knowledgeBase.toString())
+            .replace(/\/+$/, '') + queryParams(options)
+}
+
+/**
+* @see \App\Http\Controllers\Handbooks\HandbookItemController::destroyAll
+* @see app/Http/Controllers/Handbooks/HandbookItemController.php:38
+* @route '/handbooks/{knowledgeBase}/items/all'
+*/
+destroyAll.delete = (args: { knowledgeBase: string | number | { id: string | number } } | [knowledgeBase: string | number | { id: string | number } ] | string | number | { id: string | number }, options?: RouteQueryOptions): RouteDefinition<'delete'> => ({
+    url: destroyAll.url(args, options),
+    method: 'delete',
+})
+
+/**
+* @see \App\Http\Controllers\Handbooks\HandbookItemController::destroyAll
+* @see app/Http/Controllers/Handbooks/HandbookItemController.php:38
+* @route '/handbooks/{knowledgeBase}/items/all'
+*/
+const destroyAllForm = (args: { knowledgeBase: string | number | { id: string | number } } | [knowledgeBase: string | number | { id: string | number } ] | string | number | { id: string | number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
+    action: destroyAll.url(args, {
+        [options?.mergeQuery ? 'mergeQuery' : 'query']: {
+            _method: 'DELETE',
+            ...(options?.query ?? options?.mergeQuery ?? {}),
+        }
+    }),
+    method: 'post',
+})
+
+/**
+* @see \App\Http\Controllers\Handbooks\HandbookItemController::destroyAll
+* @see app/Http/Controllers/Handbooks/HandbookItemController.php:38
+* @route '/handbooks/{knowledgeBase}/items/all'
+*/
+destroyAllForm.delete = (args: { knowledgeBase: string | number | { id: string | number } } | [knowledgeBase: string | number | { id: string | number } ] | string | number | { id: string | number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
+    action: destroyAll.url(args, {
+        [options?.mergeQuery ? 'mergeQuery' : 'query']: {
+            _method: 'DELETE',
+            ...(options?.query ?? options?.mergeQuery ?? {}),
+        }
+    }),
+    method: 'post',
+})
+
+destroyAll.form = destroyAllForm
+
+/**
+* @see \App\Http\Controllers\Handbooks\HandbookItemController::destroy
+* @see app/Http/Controllers/Handbooks/HandbookItemController.php:31
+* @route '/handbooks/{knowledgeBase}/items/{item}'
+*/
+export const destroy = (args: { knowledgeBase: string | number | { id: string | number }, item: string | number | { id: string | number } } | [knowledgeBase: string | number | { id: string | number }, item: string | number | { id: string | number } ], options?: RouteQueryOptions): RouteDefinition<'delete'> => ({
+    url: destroy.url(args, options),
+    method: 'delete',
+})
+
+destroy.definition = {
+    methods: ["delete"],
+    url: '/handbooks/{knowledgeBase}/items/{item}',
+} satisfies RouteDefinition<["delete"]>
+
+/**
+* @see \App\Http\Controllers\Handbooks\HandbookItemController::destroy
+* @see app/Http/Controllers/Handbooks/HandbookItemController.php:31
+* @route '/handbooks/{knowledgeBase}/items/{item}'
+*/
+destroy.url = (args: { knowledgeBase: string | number | { id: string | number }, item: string | number | { id: string | number } } | [knowledgeBase: string | number | { id: string | number }, item: string | number | { id: string | number } ], options?: RouteQueryOptions) => {
+    if (Array.isArray(args)) {
+        args = {
+            knowledgeBase: args[0],
+            item: args[1],
+        }
+    }
+
+    args = applyUrlDefaults(args)
+
+    const parsedArgs = {
+        knowledgeBase: typeof args.knowledgeBase === 'object'
+        ? args.knowledgeBase.id
+        : args.knowledgeBase,
+        item: typeof args.item === 'object'
+        ? args.item.id
+        : args.item,
+    }
+
+    return destroy.definition.url
+            .replace('{knowledgeBase}', parsedArgs.knowledgeBase.toString())
+            .replace('{item}', parsedArgs.item.toString())
+            .replace(/\/+$/, '') + queryParams(options)
+}
+
+/**
+* @see \App\Http\Controllers\Handbooks\HandbookItemController::destroy
+* @see app/Http/Controllers/Handbooks/HandbookItemController.php:31
+* @route '/handbooks/{knowledgeBase}/items/{item}'
+*/
+destroy.delete = (args: { knowledgeBase: string | number | { id: string | number }, item: string | number | { id: string | number } } | [knowledgeBase: string | number | { id: string | number }, item: string | number | { id: string | number } ], options?: RouteQueryOptions): RouteDefinition<'delete'> => ({
+    url: destroy.url(args, options),
+    method: 'delete',
+})
+
+/**
+* @see \App\Http\Controllers\Handbooks\HandbookItemController::destroy
+* @see app/Http/Controllers/Handbooks/HandbookItemController.php:31
+* @route '/handbooks/{knowledgeBase}/items/{item}'
+*/
+const destroyForm = (args: { knowledgeBase: string | number | { id: string | number }, item: string | number | { id: string | number } } | [knowledgeBase: string | number | { id: string | number }, item: string | number | { id: string | number } ], options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
+    action: destroy.url(args, {
+        [options?.mergeQuery ? 'mergeQuery' : 'query']: {
+            _method: 'DELETE',
+            ...(options?.query ?? options?.mergeQuery ?? {}),
+        }
+    }),
+    method: 'post',
+})
+
+/**
+* @see \App\Http\Controllers\Handbooks\HandbookItemController::destroy
+* @see app/Http/Controllers/Handbooks/HandbookItemController.php:31
+* @route '/handbooks/{knowledgeBase}/items/{item}'
+*/
+destroyForm.delete = (args: { knowledgeBase: string | number | { id: string | number }, item: string | number | { id: string | number } } | [knowledgeBase: string | number | { id: string | number }, item: string | number | { id: string | number } ], options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
+    action: destroy.url(args, {
+        [options?.mergeQuery ? 'mergeQuery' : 'query']: {
+            _method: 'DELETE',
+            ...(options?.query ?? options?.mergeQuery ?? {}),
+        }
+    }),
+    method: 'post',
+})
+
+destroy.form = destroyForm
+
+const HandbookItemController = { store, update, destroyBulk, destroyAll, destroy }
 
 export default HandbookItemController
