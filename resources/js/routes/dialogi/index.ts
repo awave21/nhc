@@ -80,8 +80,75 @@ moreForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
 
 more.form = moreForm
 
+/**
+* @see \App\Http\Controllers\DialogiClearController::__invoke
+* @see app/Http/Controllers/DialogiClearController.php:16
+* @route '/dialogi/clear'
+*/
+export const clear = (options?: RouteQueryOptions): RouteDefinition<'delete'> => ({
+    url: clear.url(options),
+    method: 'delete',
+})
+
+clear.definition = {
+    methods: ["delete"],
+    url: '/dialogi/clear',
+} satisfies RouteDefinition<["delete"]>
+
+/**
+* @see \App\Http\Controllers\DialogiClearController::__invoke
+* @see app/Http/Controllers/DialogiClearController.php:16
+* @route '/dialogi/clear'
+*/
+clear.url = (options?: RouteQueryOptions) => {
+    return clear.definition.url + queryParams(options)
+}
+
+/**
+* @see \App\Http\Controllers\DialogiClearController::__invoke
+* @see app/Http/Controllers/DialogiClearController.php:16
+* @route '/dialogi/clear'
+*/
+clear.delete = (options?: RouteQueryOptions): RouteDefinition<'delete'> => ({
+    url: clear.url(options),
+    method: 'delete',
+})
+
+/**
+* @see \App\Http\Controllers\DialogiClearController::__invoke
+* @see app/Http/Controllers/DialogiClearController.php:16
+* @route '/dialogi/clear'
+*/
+const clearForm = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
+    action: clear.url({
+        [options?.mergeQuery ? 'mergeQuery' : 'query']: {
+            _method: 'DELETE',
+            ...(options?.query ?? options?.mergeQuery ?? {}),
+        }
+    }),
+    method: 'post',
+})
+
+/**
+* @see \App\Http\Controllers\DialogiClearController::__invoke
+* @see app/Http/Controllers/DialogiClearController.php:16
+* @route '/dialogi/clear'
+*/
+clearForm.delete = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
+    action: clear.url({
+        [options?.mergeQuery ? 'mergeQuery' : 'query']: {
+            _method: 'DELETE',
+            ...(options?.query ?? options?.mergeQuery ?? {}),
+        }
+    }),
+    method: 'post',
+})
+
+clear.form = clearForm
+
 const dialogi = {
     more: Object.assign(more, more),
+    clear: Object.assign(clear, clear),
 }
 
 export default dialogi

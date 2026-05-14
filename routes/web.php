@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AppealsController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\DialogiClearController;
 use App\Http\Controllers\DialogiController;
 use App\Http\Controllers\DialogiMoreController;
 use App\Http\Controllers\DocumentationController;
@@ -25,6 +26,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('dashboard', DashboardController::class)->name('dashboard');
     Route::get('dialogi', DialogiController::class)->name('dialogi');
     Route::get('dialogi/more', DialogiMoreController::class)->name('dialogi.more');
+    Route::delete('dialogi/clear', DialogiClearController::class)->name('dialogi.clear');
     Route::get('order', OrderController::class)->name('order');
     Route::get('user-profiles', UserProfilesController::class)->name('userProfiles');
     Route::get('appeals', AppealsController::class)->name('appeals');

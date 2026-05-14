@@ -1,4 +1,4 @@
-import { Link } from '@inertiajs/react';
+import { Form, Link } from '@inertiajs/react';
 import {
     Brush,
     Camera,
@@ -19,6 +19,7 @@ import {
     Smile,
     SquarePen,
     Star,
+    Trash2,
     User,
     UserRound,
     Users,
@@ -54,6 +55,7 @@ import {
 } from '@/lib/dialogi-thread-banner-storage';
 import { formatChatMessageTime } from '@/lib/format-chat-message-time';
 import { cn } from '@/lib/utils';
+import DialogiClearController from '@/actions/App/Http/Controllers/DialogiClearController';
 import { appeals, order } from '@/routes';
 import type {
     DialogiConversation,
@@ -502,6 +504,38 @@ export const Home = ({
                                 </p>
                             </div>
                             <div className="flex shrink-0 items-center gap-0.5">
+                                {activeConversationId !== '_default' && current ? (
+                                    <Form
+                                        {...DialogiClearController.form()}
+                                        options={{ preserveScroll: false }}
+                                        onBefore={() =>
+                                            window.confirm(
+                                                `Удалить переписку и контекстную память для ${current.title}? Действие нельзя отменить.`,
+                                            )
+                                        }
+                                    >
+                                        {({ processing }) => (
+                                            <>
+                                                <input
+                                                    type="hidden"
+                                                    name="tg_chat_id"
+                                                    value={current.id}
+                                                />
+                                                <Button
+                                                    type="submit"
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    disabled={processing}
+                                                    className="h-9 rounded-full px-3 text-xs text-muted-foreground hover:text-destructive"
+                                                    title="Очистить переписку и память агента"
+                                                >
+                                                    <Trash2 className="mr-1 size-4" />
+                                                    Очистить
+                                                </Button>
+                                            </>
+                                        )}
+                                    </Form>
+                                ) : null}
                                 <Button
                                     variant="ghost"
                                     size="icon"

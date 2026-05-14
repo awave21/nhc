@@ -469,6 +469,94 @@ class SupabaseDialogsClient
     }
 
     /**
+     * Удалить все строки беседы по tg_chat_id (или иной thread_id колонке).
+     *
+     * @return array{ok: bool, deleted: int, error: ?string}
+     */
+    public function deleteByThreadId(string $threadId): array
+    {
+        $threadIdColumn = (string) config('supabase.dialogs.thread_id_column', 'tg_chat_id');
+
+        if ($threadIdColumn === '' || $threadId === '') {
+            return [
+                'ok' => false,
+                'deleted' => 0,
+                'error' => 'Не указан идентификатор беседы.',
+            ];
+        }
+
+        if ($this->usesDatabaseDriver()) {
+            try {
+                $deleted = DialogRow::query()->where($threadIdColumn, $threadId)->delete();
+
+                return [
+                    'ok' => true,
+                    'deleted' => (int) $deleted,
+                    'error' => null,
+                ];
+            } catch (QueryException $exception) {
+                Log::warning('supabase.dialogs.database_delete_failed', [
+                    'message' => $exception->getMessage(),
+                    'thread_id' => $threadId,
+                ]);
+
+                return [
+                    'ok' => false,
+                    'deleted' => 0,
+                    'error' => 'Не удалось очистить диалоги в базе данных.',
+                ];
+            }
+        }
+
+        $baseUrl = rtrim((string) config('supabase.url'), '/');
+        $table = (string) config('supabase.dialogs.table');
+        $key = config('supabase.service_role_key') ?: config('supabase.anon_key');
+
+        if ($baseUrl === '' || $table === '' || empty($key)) {
+            return [
+                'ok' => false,
+                'deleted' => 0,
+                'error' => 'Supabase не настроен: задайте SUPABASE_URL и SUPABASE_SERVICE_ROLE_KEY или SUPABASE_ANON_KEY в .env.',
+            ];
+        }
+
+        $timeout = max(5, (int) config('supabase.dialogs.fetch_timeout_seconds', 60));
+
+        $response = Http::timeout($timeout)
+            ->withHeaders([
+                'apikey' => $key,
+                'Authorization' => 'Bearer '.$key,
+                'Accept' => 'application/json',
+                'Prefer' => 'return=minimal,count=exact',
+            ])
+            ->delete($baseUrl.'/rest/v1/'.$table.'?'.http_build_query([
+                $threadIdColumn => 'eq.'.$threadId,
+            ]));
+
+        if (! $response->successful()) {
+            Log::warning('supabase.dialogs.delete_request_failed', [
+                'status' => $response->status(),
+                'body' => $response->body(),
+                'thread_id' => $threadId,
+            ]);
+
+            return [
+                'ok' => false,
+                'deleted' => 0,
+                'error' => 'Не удалось очистить диалоги в Supabase.',
+            ];
+        }
+
+        $total = PostgrestContentRange::parseTotal($response->header('Content-Range'));
+
+        return [
+            'ok' => true,
+            'deleted' => $total ?? 0,
+            'error' => null,
+        ];
+    }
+
+    /**
      * Число строк в таблице диалогов (с теми же фильтрами, что и список).
      *
      * @return array{ok: bool, count: int, error: ?string}

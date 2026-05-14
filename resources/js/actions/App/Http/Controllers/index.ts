@@ -2,6 +2,7 @@ import Api from './Api'
 import DashboardController from './DashboardController'
 import DialogiController from './DialogiController'
 import DialogiMoreController from './DialogiMoreController'
+import DialogiClearController from './DialogiClearController'
 import OrderController from './OrderController'
 import UserProfilesController from './UserProfilesController'
 import AppealsController from './AppealsController'
@@ -15,6 +16,7 @@ const Controllers = {
     DashboardController: Object.assign(DashboardController, DashboardController),
     DialogiController: Object.assign(DialogiController, DialogiController),
     DialogiMoreController: Object.assign(DialogiMoreController, DialogiMoreController),
+    DialogiClearController: Object.assign(DialogiClearController, DialogiClearController),
     OrderController: Object.assign(OrderController, OrderController),
     UserProfilesController: Object.assign(UserProfilesController, UserProfilesController),
     AppealsController: Object.assign(AppealsController, AppealsController),
