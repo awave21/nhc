@@ -1,6 +1,6 @@
 import { Form, Head, router, setLayoutProps } from '@inertiajs/react';
-import { Check, Clock, Download, Plus, Search, Trash2 } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { Check, ChevronDown, ChevronRight, Clock, Download, History, Plus, Search, Trash2 } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import ImportWizard from '@/components/handbooks/import-wizard';
 
@@ -20,7 +20,7 @@ import {
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
 import HandbookItemController from '@/actions/App/Http/Controllers/Handbooks/HandbookItemController';
@@ -190,6 +190,165 @@ function DeleteBulkDialog({ handbookId, selectedIds, onSuccess }: { handbookId: 
     );
 }
 
+type QueryLogResult = { id: number; question: string; score: number };
+
+type QueryLog = {
+    id: number;
+    query: string;
+    results: QueryLogResult[];
+    result_count: number;
+    created_at: string;
+};
+
+function formatRelativeTime(iso: string): string {
+    const then = new Date(iso).getTime();
+    if (Number.isNaN(then)) return iso;
+    const diff = Math.max(0, Date.now() - then);
+    const sec = Math.round(diff / 1000);
+    if (sec < 60) return `${sec} сек назад`;
+    const min = Math.round(sec / 60);
+    if (min < 60) return `${min} мин назад`;
+    const hr = Math.round(min / 60);
+    if (hr < 24) return `${hr} ч назад`;
+    const day = Math.round(hr / 24);
+    return `${day} дн назад`;
+}
+
+function QueryLogsPanel({ handbookId }: { handbookId: number }) {
+    const [logs, setLogs] = useState<QueryLog[]>([]);
+    const [loading, setLoading] = useState(false);
+    const [nextBefore, setNextBefore] = useState<number | null>(null);
+    const [expanded, setExpanded] = useState<Set<number>>(new Set());
+    const [error, setError] = useState<string | null>(null);
+
+    const fetchLogs = useCallback(
+        async (before: number | null, append: boolean) => {
+            setLoading(true);
+            setError(null);
+            try {
+                const url = handbooks.queryLogs(handbookId).url + (before ? `?before=${before}` : '');
+                const res = await fetch(url, {
+                    credentials: 'same-origin',
+                    headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                });
+                if (!res.ok) {
+                    throw new Error('Не удалось загрузить историю.');
+                }
+                const data: { logs: QueryLog[]; next_before: number | null } = await res.json();
+                setLogs((prev) => (append ? [...prev, ...data.logs] : data.logs));
+                setNextBefore(data.next_before);
+            } catch (e) {
+                setError(e instanceof Error ? e.message : 'Ошибка загрузки.');
+            } finally {
+                setLoading(false);
+            }
+        },
+        [handbookId],
+    );
+
+    useEffect(() => {
+        fetchLogs(null, false);
+        const id = setInterval(() => fetchLogs(null, false), 10000);
+        return () => clearInterval(id);
+    }, [fetchLogs]);
+
+    const toggle = (id: number) =>
+        setExpanded((prev) => {
+            const next = new Set(prev);
+            if (next.has(id)) {
+                next.delete(id);
+            } else {
+                next.add(id);
+            }
+            return next;
+        });
+
+    return (
+        <div className="flex h-full min-h-0 flex-col">
+            <SheetHeader className="shrink-0 border-b">
+                <SheetTitle className="flex items-center gap-2">
+                    <History className="h-4 w-4" />
+                    История вызовов
+                </SheetTitle>
+            </SheetHeader>
+            <div className="min-h-0 flex-1 overflow-y-auto p-4">
+                {error && <div className="mb-3 rounded-md bg-destructive/10 p-3 text-sm text-destructive">{error}</div>}
+                {logs.length === 0 && !loading ? (
+                    <p className="py-12 text-center text-sm text-muted-foreground">Вызовов пока не было.</p>
+                ) : (
+                    <ul className="divide-y divide-border">
+                        {logs.map((log) => {
+                            const isOpen = expanded.has(log.id);
+                            const topScore = log.results[0]?.score ?? null;
+                            return (
+                                <li key={log.id} className="py-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => toggle(log.id)}
+                                        className="flex w-full items-start gap-3 rounded-md px-2 py-2 text-left hover:bg-accent"
+                                    >
+                                        {isOpen ? (
+                                            <ChevronDown className="mt-1 h-4 w-4 shrink-0 text-muted-foreground" />
+                                        ) : (
+                                            <ChevronRight className="mt-1 h-4 w-4 shrink-0 text-muted-foreground" />
+                                        )}
+                                        <span className="w-32 shrink-0 text-xs text-muted-foreground tabular-nums">
+                                            {formatRelativeTime(log.created_at)}
+                                        </span>
+                                        <span className="min-w-0 flex-1 truncate text-sm">{log.query}</span>
+                                        <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs">
+                                            {log.result_count} найдено
+                                        </span>
+                                        {topScore !== null && (
+                                            <span className="w-16 shrink-0 text-right text-xs text-muted-foreground tabular-nums">
+                                                top {topScore.toFixed(3)}
+                                            </span>
+                                        )}
+                                    </button>
+                                    {isOpen && (
+                                        <div className="ml-7 mt-1 space-y-1 pb-2">
+                                            {log.results.length === 0 ? (
+                                                <p className="text-xs text-muted-foreground">Ничего не найдено.</p>
+                                            ) : (
+                                                log.results.map((r) => (
+                                                    <div
+                                                        key={r.id}
+                                                        className="flex items-start gap-3 rounded-md bg-muted/30 px-3 py-2 text-sm"
+                                                    >
+                                                        <span className="w-14 shrink-0 text-xs text-muted-foreground tabular-nums">
+                                                            {r.score.toFixed(3)}
+                                                        </span>
+                                                        <span className="min-w-0 flex-1">{r.question}</span>
+                                                        <span className="shrink-0 text-xs text-muted-foreground">
+                                                            #{r.id}
+                                                        </span>
+                                                    </div>
+                                                ))
+                                            )}
+                                        </div>
+                                    )}
+                                </li>
+                            );
+                        })}
+                    </ul>
+                )}
+                {nextBefore !== null && (
+                    <div className="pt-3 text-center">
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={loading}
+                            onClick={() => fetchLogs(nextBefore, true)}
+                        >
+                            {loading ? 'Загрузка…' : 'Загрузить ещё'}
+                        </Button>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+}
+
 export default function HandbookShow({ handbook, items, stats }: HandbookShowPageProps) {
     useEffect(() => {
         setLayoutProps({
@@ -252,6 +411,20 @@ export default function HandbookShow({ handbook, items, stats }: HandbookShowPag
                                 onSuccess={() => setCheckedIds(new Set())}
                             />
                         )}
+                        <Sheet>
+                            <SheetTrigger asChild>
+                                <Button variant="outline" size="sm">
+                                    <History className="mr-1 h-4 w-4" />
+                                    История вызовов
+                                </Button>
+                            </SheetTrigger>
+                            <SheetContent
+                                side="right"
+                                className="w-[90vw] !max-w-[90vw] p-0 sm:w-[90vw] sm:!max-w-[90vw]"
+                            >
+                                <QueryLogsPanel handbookId={handbook.id} />
+                            </SheetContent>
+                        </Sheet>
                         <a
                             href={handbooks.export(handbook).url}
                             className="inline-flex items-center gap-1 rounded-lg border border-input bg-background px-3 py-1.5 text-sm font-medium hover:bg-accent"
