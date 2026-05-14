@@ -12,7 +12,6 @@ RUN apk add --no-cache php84 php84-phar php84-openssl php84-mbstring php84-token
 COPY . .
 COPY --from=composer_deps /app/vendor ./vendor
 RUN npm ci
-RUN php artisan wayfinder:generate
 RUN npm run build
 
 FROM php:8.4-fpm-alpine AS runtime

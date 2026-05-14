@@ -12,7 +12,12 @@ class HandbookImportController extends Controller
 {
     public function __invoke(StoreHandbookImportRequest $request, KnowledgeBase $knowledgeBase): RedirectResponse
     {
+        $existing = $knowledgeBase->items()
+            ->pluck('question')
+            ->mapWithKeys(fn (string $q): array => [mb_strtolower(trim($q)) => true]);
+
         $inserted = 0;
+        $skippedDuplicate = 0;
 
         foreach ($request->validated('items') as $row) {
             $question = trim((string) $row['question']);
@@ -21,6 +26,14 @@ class HandbookImportController extends Controller
             if ($question === '' || $answer === '') {
                 continue;
             }
+
+            $normalized = mb_strtolower($question);
+            if ($existing->has($normalized)) {
+                $skippedDuplicate++;
+
+                continue;
+            }
+            $existing->put($normalized, true);
 
             $item = $knowledgeBase->items()->create([
                 'question' => $question,
@@ -36,6 +49,11 @@ class HandbookImportController extends Controller
             $inserted++;
         }
 
-        return back()->with('success', "Импортировано записей: {$inserted}");
+        $message = "Импортировано записей: {$inserted}";
+        if ($skippedDuplicate > 0) {
+            $message .= ", пропущено дублей: {$skippedDuplicate}";
+        }
+
+        return back()->with('success', $message);
     }
 }

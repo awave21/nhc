@@ -47,7 +47,6 @@ export default function ImportWizard({ handbookId }: { handbookId: number }) {
     const [qCol, setQCol] = useState('');
     const [aCol, setACol] = useState('');
     const [rows, setRows] = useState<EditableRow[]>([]);
-    const [submitting, setSubmitting] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const reset = () => {
@@ -59,7 +58,6 @@ export default function ImportWizard({ handbookId }: { handbookId: number }) {
         setQCol('');
         setACol('');
         setRows([]);
-        setSubmitting(false);
         if (fileInputRef.current) {
             fileInputRef.current.value = '';
         }
@@ -140,14 +138,14 @@ export default function ImportWizard({ handbookId }: { handbookId: number }) {
             return;
         }
 
-        setSubmitting(true);
+        handleOpenChange(false);
+
         router.post(
             handbooks.import(handbookId).url,
             { items },
             {
                 preserveScroll: true,
-                onSuccess: () => handleOpenChange(false),
-                onFinish: () => setSubmitting(false),
+                onSuccess: () => router.reload({ only: ['items', 'stats'], preserveScroll: true }),
             },
         );
     };
@@ -333,8 +331,8 @@ export default function ImportWizard({ handbookId }: { handbookId: number }) {
                     {step === 'edit' && (
                         <>
                             <Button variant="secondary" onClick={() => setStep('map')}>Назад</Button>
-                            <Button onClick={handleSubmit} disabled={submitting || includedCount === 0}>
-                                {submitting ? 'Импортируем…' : `Импортировать (${includedCount})`}
+                            <Button onClick={handleSubmit} disabled={includedCount === 0}>
+                                {`Импортировать (${includedCount})`}
                             </Button>
                         </>
                     )}

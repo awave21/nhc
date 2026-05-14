@@ -56,7 +56,7 @@ function EmbeddingBadge({ ready }: { ready: boolean }) {
             title="Эмбеддинг генерируется"
         >
             <Clock className="h-3 w-3 animate-pulse" />
-            В очереди
+            В процессе
         </span>
     );
 }
@@ -283,7 +283,7 @@ export default function HandbookShow({ handbook, items, stats }: HandbookShowPag
                             {pending > 0 && (
                                 <span className="ml-1 inline-flex items-center gap-1 text-amber-600 dark:text-amber-400">
                                     <Clock className="h-3 w-3 animate-pulse" />
-                                    {pending} в очереди
+                                    {pending} в процессе
                                 </span>
                             )}
                         </div>
