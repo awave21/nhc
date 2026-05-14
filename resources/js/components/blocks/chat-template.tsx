@@ -55,7 +55,6 @@ import {
 } from '@/lib/dialogi-thread-banner-storage';
 import { formatChatMessageTime } from '@/lib/format-chat-message-time';
 import { cn } from '@/lib/utils';
-import DialogiClearController from '@/actions/App/Http/Controllers/DialogiClearController';
 import { appeals, order } from '@/routes';
 import type {
     DialogiConversation,

@@ -31,6 +31,8 @@ return Application::configure(basePath: dirname(__DIR__))
             AddLinkHeadersForPreloadedAssets::class,
         ]);
 
+        $middleware->redirectGuestsTo('/');
+
         $middleware->alias([
             'api.token' => ValidateApiToken::class,
         ]);
@@ -38,7 +40,7 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->render(function (AuthenticationException $e, Request $request) {
             if ($request->header('X-Inertia')) {
-                return Inertia::location(route('login'));
+                return Inertia::location('/');
             }
         });
 

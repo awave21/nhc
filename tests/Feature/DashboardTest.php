@@ -26,7 +26,7 @@ class DashboardTest extends TestCase
     {
         $response = $this->get(route('dashboard'));
 
-        $response->assertRedirect(route('login'));
+        $response->assertRedirect('/');
     }
 
     public function test_authenticated_users_can_visit_the_dashboard(): void

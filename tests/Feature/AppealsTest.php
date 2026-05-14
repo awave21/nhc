@@ -26,7 +26,7 @@ class AppealsTest extends TestCase
     {
         $response = $this->get(route('appeals'));
 
-        $response->assertRedirect(route('login'));
+        $response->assertRedirect('/');
     }
 
     public function test_authenticated_users_can_visit_appeals_page(): void

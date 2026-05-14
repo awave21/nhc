@@ -24,7 +24,7 @@ class KnowledgeBaseWebTest extends TestCase
 
     public function test_handbooks_index_requires_auth(): void
     {
-        $this->get('/handbooks')->assertRedirect('/login');
+        $this->get('/handbooks')->assertRedirect('/');
     }
 
     public function test_handbooks_index_is_accessible(): void
