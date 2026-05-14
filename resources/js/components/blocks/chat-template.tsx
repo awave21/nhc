@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import React, { useLayoutEffect, useMemo, useRef, useState } from 'react';
 
+import DialogiClearController from '@/actions/App/Http/Controllers/DialogiClearController';
 import { ChatMessageMarkdown } from '@/components/chat-message-markdown';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -55,7 +56,6 @@ import {
 } from '@/lib/dialogi-thread-banner-storage';
 import { formatChatMessageTime } from '@/lib/format-chat-message-time';
 import { cn } from '@/lib/utils';
-import DialogiClearController from '@/actions/App/Http/Controllers/DialogiClearController';
 import { appeals, order } from '@/routes';
 import type {
     DialogiConversation,

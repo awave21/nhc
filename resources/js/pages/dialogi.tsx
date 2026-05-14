@@ -2,8 +2,8 @@ import { Head, usePage } from '@inertiajs/react';
 import { useCallback, useEffect, useState } from 'react';
 import { Home as ChatTemplateHome } from '@/components/blocks/chat-template';
 import { mergeDialogiData } from '@/lib/merge-dialogi';
-import dialogiRoutes from '@/routes/dialogi';
 import { dialogi } from '@/routes';
+import dialogiRoutes from '@/routes/dialogi';
 import type { DialogiPageProps } from '@/types/dialogi';
 
 export default function Dialogi({

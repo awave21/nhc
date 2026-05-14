@@ -2,11 +2,13 @@ import { Form, Head, router, setLayoutProps } from '@inertiajs/react';
 import { Check, ChevronDown, ChevronRight, Clock, Download, History, Plus, Search, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
+import HandbookItemController from '@/actions/App/Http/Controllers/Handbooks/HandbookItemController';
 import ImportWizard from '@/components/handbooks/import-wizard';
 
 import Heading from '@/components/heading';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
     Dialog,
     DialogClose,
@@ -17,15 +19,13 @@ import {
     DialogTitle,
     DialogTrigger,
 } from '@/components/ui/dialog';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
-import HandbookItemController from '@/actions/App/Http/Controllers/Handbooks/HandbookItemController';
-import handbooks from '@/routes/handbooks';
 import { cn } from '@/lib/utils';
+import handbooks from '@/routes/handbooks';
 
 export type HandbookItem = {
     id: number;
@@ -169,7 +169,9 @@ function DeleteBulkDialog({ handbookId, selectedIds, onSuccess }: { handbookId: 
                 <Form
                     {...formProps}
                     options={{ preserveScroll: true }}
-                    onSuccess={() => { setOpen(false); onSuccess(); }}
+                    onSuccess={() => {
+ setOpen(false); onSuccess(); 
+}}
                 >
                     {({ processing }) => (
                         <>
@@ -202,15 +204,32 @@ type QueryLog = {
 
 function formatRelativeTime(iso: string): string {
     const then = new Date(iso).getTime();
-    if (Number.isNaN(then)) return iso;
+
+    if (Number.isNaN(then)) {
+return iso;
+}
+
     const diff = Math.max(0, Date.now() - then);
     const sec = Math.round(diff / 1000);
-    if (sec < 60) return `${sec} сек назад`;
+
+    if (sec < 60) {
+return `${sec} сек назад`;
+}
+
     const min = Math.round(sec / 60);
-    if (min < 60) return `${min} мин назад`;
+
+    if (min < 60) {
+return `${min} мин назад`;
+}
+
     const hr = Math.round(min / 60);
-    if (hr < 24) return `${hr} ч назад`;
+
+    if (hr < 24) {
+return `${hr} ч назад`;
+}
+
     const day = Math.round(hr / 24);
+
     return `${day} дн назад`;
 }
 
@@ -225,15 +244,18 @@ function QueryLogsPanel({ handbookId }: { handbookId: number }) {
         async (before: number | null, append: boolean) => {
             setLoading(true);
             setError(null);
+
             try {
                 const url = handbooks.queryLogs(handbookId).url + (before ? `?before=${before}` : '');
                 const res = await fetch(url, {
                     credentials: 'same-origin',
                     headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
                 });
+
                 if (!res.ok) {
                     throw new Error('Не удалось загрузить историю.');
                 }
+
                 const data: { logs: QueryLog[]; next_before: number | null } = await res.json();
                 setLogs((prev) => (append ? [...prev, ...data.logs] : data.logs));
                 setNextBefore(data.next_before);
@@ -249,17 +271,20 @@ function QueryLogsPanel({ handbookId }: { handbookId: number }) {
     useEffect(() => {
         fetchLogs(null, false);
         const id = setInterval(() => fetchLogs(null, false), 10000);
+
         return () => clearInterval(id);
     }, [fetchLogs]);
 
     const toggle = (id: number) =>
         setExpanded((prev) => {
             const next = new Set(prev);
+
             if (next.has(id)) {
                 next.delete(id);
             } else {
                 next.add(id);
             }
+
             return next;
         });
 
@@ -280,6 +305,7 @@ function QueryLogsPanel({ handbookId }: { handbookId: number }) {
                         {logs.map((log) => {
                             const isOpen = expanded.has(log.id);
                             const topScore = log.results[0]?.score ?? null;
+
                             return (
                                 <li key={log.id} className="py-2">
                                     <button
@@ -365,9 +391,11 @@ export default function HandbookShow({ handbook, items, stats }: HandbookShowPag
         if (pending === 0) {
             return;
         }
+
         const id = setInterval(() => {
             router.reload({ only: ['items', 'stats'], preserveScroll: true });
         }, 5000);
+
         return () => clearInterval(id);
     }, [pending]);
 
@@ -385,14 +413,32 @@ export default function HandbookShow({ handbook, items, stats }: HandbookShowPag
 
     const toggleAll = () => {
         if (allChecked) {
-            setCheckedIds((prev) => { const next = new Set(prev); filtered.forEach((i) => next.delete(i.id)); return next; });
+            setCheckedIds((prev) => {
+ const next = new Set(prev); filtered.forEach((i) => next.delete(i.id));
+
+ return next; 
+});
         } else {
-            setCheckedIds((prev) => { const next = new Set(prev); filtered.forEach((i) => next.add(i.id)); return next; });
+            setCheckedIds((prev) => {
+ const next = new Set(prev); filtered.forEach((i) => next.add(i.id));
+
+ return next; 
+});
         }
     };
 
     const toggleOne = (id: number) => {
-        setCheckedIds((prev) => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next; });
+        setCheckedIds((prev) => {
+            const next = new Set(prev);
+
+            if (next.has(id)) {
+                next.delete(id);
+            } else {
+                next.add(id);
+            }
+
+            return next;
+        });
     };
 
     const selectedIds = useMemo(() => Array.from(checkedIds), [checkedIds]);
@@ -470,7 +516,11 @@ export default function HandbookShow({ handbook, items, stats }: HandbookShowPag
                                 <TableHead className="w-10" onClick={(e) => e.stopPropagation()}>
                                     <Checkbox
                                         checked={allChecked}
-                                        ref={(el) => { if (el) (el as HTMLButtonElement).dataset.indeterminate = String(someChecked && !allChecked); }}
+                                        ref={(el) => {
+ if (el) {
+(el as HTMLButtonElement).dataset.indeterminate = String(someChecked && !allChecked);
+} 
+}}
                                         onCheckedChange={toggleAll}
                                         aria-label="Выбрать все"
                                     />
@@ -522,7 +572,11 @@ export default function HandbookShow({ handbook, items, stats }: HandbookShowPag
                 </div>
             </div>
 
-            <Sheet open={selectedItem !== null} onOpenChange={(open) => { if (!open) { setSelectedItem(null); } }}>
+            <Sheet open={selectedItem !== null} onOpenChange={(open) => {
+ if (!open) {
+ setSelectedItem(null); 
+} 
+}}>
                 <SheetContent side="right" className="flex w-full min-h-0 flex-col sm:max-w-xl">
                     <SheetHeader>
                         <SheetTitle className="text-left">Редактирование записи</SheetTitle>

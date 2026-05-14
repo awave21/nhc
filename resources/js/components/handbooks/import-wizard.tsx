@@ -19,8 +19,8 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
-import handbooks from '@/routes/handbooks';
 import { cn } from '@/lib/utils';
+import handbooks from '@/routes/handbooks';
 
 type Step = 'pick' | 'map' | 'edit';
 type RawRow = Record<string, string>;
@@ -28,12 +28,15 @@ type EditableRow = { question: string; answer: string; included: boolean };
 
 function guessColumn(headers: string[], candidates: string[]): string {
     const lower = headers.map((h) => h.trim().toLowerCase());
+
     for (const candidate of candidates) {
         const idx = lower.indexOf(candidate);
+
         if (idx !== -1) {
             return headers[idx];
         }
     }
+
     return '';
 }
 
@@ -58,6 +61,7 @@ export default function ImportWizard({ handbookId }: { handbookId: number }) {
         setQCol('');
         setACol('');
         setRows([]);
+
         if (fileInputRef.current) {
             fileInputRef.current.value = '';
         }
@@ -67,11 +71,13 @@ export default function ImportWizard({ handbookId }: { handbookId: number }) {
         if (!next) {
             reset();
         }
+
         setOpen(next);
     };
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
+
         if (!file) {
             return;
         }
@@ -82,13 +88,16 @@ export default function ImportWizard({ handbookId }: { handbookId: number }) {
         Papa.parse<RawRow>(file, {
             header: true,
             skipEmptyLines: true,
-            transformHeader: (h) => h.replace(/^﻿/, '').trim(),
+            transformHeader: (h) => h.replace(/^\ufeff/, '').trim(),
             complete: (result) => {
                 const fields = (result.meta.fields ?? []).filter((f) => f.length > 0);
+
                 if (fields.length === 0 || result.data.length === 0) {
                     setParseError('Не удалось распознать колонки или строки в файле.');
+
                     return;
                 }
+
                 setHeaders(fields);
                 setRawRows(result.data);
                 setQCol(guessColumn(fields, ['question', 'вопрос']));
@@ -105,9 +114,11 @@ export default function ImportWizard({ handbookId }: { handbookId: number }) {
         if (!qCol || !aCol) {
             return;
         }
+
         const built: EditableRow[] = rawRows.map((r) => {
             const question = (r[qCol] ?? '').trim();
             const answer = (r[aCol] ?? '').trim();
+
             return {
                 question,
                 answer,

@@ -2,6 +2,7 @@ import { Form, Head, router } from '@inertiajs/react';
 import { Database, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 
+import HandbookController from '@/actions/App/Http/Controllers/Handbooks/HandbookController';
 import Heading from '@/components/heading';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
@@ -19,7 +20,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
-import HandbookController from '@/actions/App/Http/Controllers/Handbooks/HandbookController';
 import handbooks from '@/routes/handbooks';
 
 export type Handbook = {

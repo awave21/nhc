@@ -12,6 +12,7 @@ export function readDialogiBannerDismissed(): DialogiBannerDismissed {
 
     try {
         const raw = window.localStorage.getItem(STORAGE_KEY);
+
         if (!raw) {
             return {};
         }
