@@ -17,7 +17,7 @@ class DialogiClearTest extends TestCase
     {
         $response = $this->delete(route('dialogi.clear'), ['tg_chat_id' => '123']);
 
-        $response->assertRedirect(route('login'));
+        $response->assertRedirect('/');
     }
 
     public function test_validates_tg_chat_id_required(): void

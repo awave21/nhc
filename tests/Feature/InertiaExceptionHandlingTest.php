@@ -24,17 +24,17 @@ class InertiaExceptionHandlingTest extends TestCase
         ];
     }
 
-    public function test_unauthenticated_inertia_request_returns_409_location_to_login(): void
+    public function test_unauthenticated_inertia_request_returns_409_location_to_home(): void
     {
         $response = $this->withHeaders($this->inertiaHeaders())->get('/dashboard');
 
         $response->assertStatus(409);
-        $this->assertSame(route('login'), $response->headers->get('X-Inertia-Location'));
+        $this->assertSame('/', $response->headers->get('X-Inertia-Location'));
     }
 
-    public function test_unauthenticated_non_inertia_request_still_redirects_302(): void
+    public function test_unauthenticated_non_inertia_request_redirects_to_home(): void
     {
-        $this->get('/dashboard')->assertRedirect('/login');
+        $this->get('/dashboard')->assertRedirect('/');
     }
 
     public function test_token_mismatch_on_inertia_request_returns_409_location_to_same_url(): void

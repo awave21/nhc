@@ -30,7 +30,7 @@ class DialogiTest extends TestCase
     {
         $response = $this->get(route('dialogi'));
 
-        $response->assertRedirect(route('login'));
+        $response->assertRedirect('/');
     }
 
     public function test_dialogi_passes_initial_username_query_to_the_page(): void

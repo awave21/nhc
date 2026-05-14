@@ -15,7 +15,7 @@ class DocumentationTest extends TestCase
     {
         $response = $this->get(route('documentation'));
 
-        $response->assertRedirect(route('login'));
+        $response->assertRedirect('/');
     }
 
     public function test_authenticated_users_can_visit_the_documentation_page(): void

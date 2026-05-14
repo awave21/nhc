@@ -58,7 +58,7 @@ class QueryLogsTest extends TestCase
     {
         $kb = KnowledgeBase::factory()->create();
 
-        $this->get("/handbooks/{$kb->id}/query-logs")->assertRedirect('/login');
+        $this->get("/handbooks/{$kb->id}/query-logs")->assertRedirect('/');
     }
 
     public function test_handbook_query_logs_returns_only_this_handbook_descending(): void

@@ -28,7 +28,7 @@ class OrderTest extends TestCase
     {
         $response = $this->get(route('order'));
 
-        $response->assertRedirect(route('login'));
+        $response->assertRedirect('/');
     }
 
     public function test_authenticated_users_can_visit_order_page(): void
