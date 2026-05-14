@@ -12,6 +12,7 @@ use App\Http\Controllers\Handbooks\HandbookExportController;
 use App\Http\Controllers\Handbooks\HandbookImportController;
 use App\Http\Controllers\Handbooks\HandbookItemController;
 use App\Http\Controllers\Handbooks\HandbookItemsController;
+use App\Http\Controllers\Handbooks\HandbookQueryLogsController;
 use App\Http\Controllers\Handbooks\HandbooksController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\UserProfilesController;
@@ -44,6 +45,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::delete('handbooks/{knowledgeBase}/items/bulk', [HandbookItemController::class, 'destroyBulk'])->name('handbooks.items.destroyBulk');
     Route::delete('handbooks/{knowledgeBase}/items/all', [HandbookItemController::class, 'destroyAll'])->name('handbooks.items.destroyAll');
     Route::delete('handbooks/{knowledgeBase}/items/{item}', [HandbookItemController::class, 'destroy'])->name('handbooks.items.destroy');
+    Route::get('handbooks/{knowledgeBase}/query-logs', HandbookQueryLogsController::class)->name('handbooks.queryLogs');
     Route::get('handbooks/{knowledgeBase}/export', HandbookExportController::class)->name('handbooks.export');
     Route::post('handbooks/{knowledgeBase}/import', HandbookImportController::class)->name('handbooks.import');
 });

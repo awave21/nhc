@@ -1,5 +1,5 @@
-import type { DialogiConversation, DialogiMessage } from '@/types/dialogi';
 import { compareDialogiInstants } from '@/lib/compare-dialogi-instants';
+import type { DialogiConversation, DialogiMessage } from '@/types/dialogi';
 
 type Bundle = {
     conversations: DialogiConversation[];

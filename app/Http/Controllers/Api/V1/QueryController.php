@@ -3,9 +3,11 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Models\KnowledgeBaseQueryLog;
 use App\Services\EmbeddingService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 class QueryController extends Controller
@@ -24,6 +26,8 @@ class QueryController extends Controller
         $vector = $this->embeddingService->embed($validated['query']);
 
         if (DB::getDriverName() !== 'pgsql') {
+            $this->logQuery($validated, collect());
+
             return response()->json(['results' => []]);
         }
 
@@ -42,6 +46,26 @@ class QueryController extends Controller
             ->limit($limit)
             ->get();
 
+        $this->logQuery($validated, $results);
+
         return response()->json(['results' => $results]);
+    }
+
+    /**
+     * @param  array{query: string, knowledge_base_id?: int|null, limit?: int|null}  $validated
+     * @param  Collection<int, object{id: int, question: string, answer: string, score: float|int|string}>  $results
+     */
+    private function logQuery(array $validated, $results): void
+    {
+        KnowledgeBaseQueryLog::create([
+            'knowledge_base_id' => $validated['knowledge_base_id'] ?? null,
+            'query' => $validated['query'],
+            'results' => $results->map(fn ($row): array => [
+                'id' => (int) $row->id,
+                'question' => (string) $row->question,
+                'score' => (float) $row->score,
+            ])->all(),
+            'result_count' => $results->count(),
+        ]);
     }
 }
