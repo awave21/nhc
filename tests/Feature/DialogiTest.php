@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Http;
 use Inertia\Testing\AssertableInertia as Assert;
@@ -24,6 +25,10 @@ class DialogiTest extends TestCase
         Config::set('supabase.dialogs.scope_to_user', false);
         Config::set('supabase.dialogs.thread_id_column', 'tg_chat_id');
         Config::set('supabase.dialogs.conversation_title_column', 'tg_username');
+
+        // Чтобы кеш escalation/event_registrations не протекал между тестами
+        // (кеш на 60s включён по умолчанию).
+        Cache::flush();
     }
 
     public function test_guests_are_redirected_to_the_login_page(): void
@@ -115,7 +120,7 @@ class DialogiTest extends TestCase
             ->missing('loadError')
             ->missing('dialogsTruncated')
             ->missing('dialogsNextOffset')
-            ->has('threadContextByConversation')
+            ->missing('threadContextByConversation')
             ->loadDeferredProps('dialogs', fn (Assert $reload) => $reload
                 ->has('conversations')
                 ->has('messages', 2)
@@ -129,6 +134,9 @@ class DialogiTest extends TestCase
                 ->where('loadError', null)
                 ->where('dialogsTruncated', false)
                 ->where('dialogsNextOffset', 2)
+            )
+            ->loadDeferredProps('thread_context', fn (Assert $reload) => $reload
+                ->has('threadContextByConversation')
             )
         );
     }
@@ -347,8 +355,6 @@ class DialogiTest extends TestCase
 
     public function test_dialogi_includes_thread_context_for_matching_supabase_rows(): void
     {
-        $this->markTestSkipped('Шаг 1 восстановления: escalation_message и event_registrations временно отключены в DialogiController. Вернём вместе с баннерами в шаге 3 (кеш).');
-
         Http::fake([
             'https://supabase.test/rest/v1/dialogs*' => Http::response([
                 [

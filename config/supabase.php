@@ -152,6 +152,8 @@ return [
         'fetch_max_batches' => (int) env('SUPABASE_EVENT_REGISTRATIONS_FETCH_MAX_BATCHES', 50),
 
         'fetch_timeout_seconds' => (int) env('SUPABASE_EVENT_REGISTRATIONS_FETCH_TIMEOUT', 60),
+
+        'fetch_cache_ttl_seconds' => (int) env('SUPABASE_EVENT_REGISTRATIONS_FETCH_CACHE_TTL', 60),
     ],
 
     /*
@@ -175,6 +177,8 @@ return [
         'fetch_max_batches' => (int) env('SUPABASE_ESCALATION_MESSAGE_FETCH_MAX_BATCHES', 50),
 
         'fetch_timeout_seconds' => (int) env('SUPABASE_ESCALATION_MESSAGE_FETCH_TIMEOUT', 60),
+
+        'fetch_cache_ttl_seconds' => (int) env('SUPABASE_ESCALATION_MESSAGE_FETCH_CACHE_TTL', 60),
     ],
 
     /*

@@ -4,6 +4,7 @@ namespace App\Services\Supabase;
 
 use App\Models\Supabase\EventRegistration;
 use Illuminate\Database\QueryException;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -13,9 +14,30 @@ class SupabaseEventRegistrationsClient
     /**
      * Полная выгрузка `event_registrations` чанками (limit/offset).
      *
+     * Результат кешируется на короткий TTL: таблица меняется редко, а
+     * на страницу «Диалоги» этот fetch вызывается на каждом partial-reload.
+     *
      * @return array{ok: bool, rows: list<array<string, mixed>>, error: ?string}
      */
     public function fetchAll(): array
+    {
+        $ttl = max(0, (int) config('supabase.event_registrations.fetch_cache_ttl_seconds', 60));
+
+        if ($ttl <= 0) {
+            return $this->fetchAllUncached();
+        }
+
+        return Cache::remember(
+            'supabase.event_registrations.fetch_all',
+            $ttl,
+            fn (): array => $this->fetchAllUncached(),
+        );
+    }
+
+    /**
+     * @return array{ok: bool, rows: list<array<string, mixed>>, error: ?string}
+     */
+    private function fetchAllUncached(): array
     {
         if ($this->usesDatabaseDriver()) {
             return $this->fetchAllFromDatabase();
