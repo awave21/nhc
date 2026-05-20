@@ -28,13 +28,16 @@ export type DialogiThreadContextEntry = {
 };
 
 export type DialogiPageProps = {
-    conversations: DialogiConversation[];
-    messages: DialogiMessage[];
-    loadError: string | null;
-    /** Первая волна обрезана лимитом батчей — можно запросить /dialogi/more */
-    dialogsTruncated: boolean;
-    /** Следующий offset для limit/offset в Supabase (число уже загруженных строк) */
-    dialogsNextOffset: number;
+    /** Отложенный проп (Inertia::defer); undefined до завершения загрузки. */
+    conversations?: DialogiConversation[];
+    /** Отложенный проп; undefined до завершения загрузки. */
+    messages?: DialogiMessage[];
+    /** Отложенный проп; undefined до завершения загрузки. */
+    loadError?: string | null;
+    /** Отложенный проп: первая волна обрезана лимитом батчей. */
+    dialogsTruncated?: boolean;
+    /** Отложенный проп: следующий offset для limit/offset в Supabase. */
+    dialogsNextOffset?: number;
     /** Открыть тред по tg_chat_id (?conversation=) */
     initialConversationId?: string | null;
     /** Открыть тред по username, как в title беседы (?username=), без учёта регистра и ведущего @ */
