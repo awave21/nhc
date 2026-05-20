@@ -50,27 +50,28 @@ class DialogiController extends Controller
         }
 
         $presented = DialogiPresenter::fromRows($result['rows']);
-
-        $appealsFetch = $escalationClient->fetchAll();
-        $ordersFetch = $registrationsClient->fetchAll();
-        $appealRows = $appealsFetch['ok'] ? $appealsFetch['rows'] : [];
-        $orderRows = $ordersFetch['ok'] ? $ordersFetch['rows'] : [];
-
-        $threadContext = DialogiThreadContextBuilder::build(
-            $presented['conversations'],
-            $appealRows,
-            $orderRows,
-        );
+        $conversations = $presented['conversations'];
 
         return Inertia::render('dialogi', [
-            'conversations' => $presented['conversations'],
+            'conversations' => $conversations,
             'messages' => $presented['messages'],
             'loadError' => null,
             'dialogsTruncated' => (bool) ($result['truncated'] ?? false),
             'dialogsNextOffset' => (int) ($result['next_offset'] ?? 0),
             'initialConversationId' => $initialConversationId,
             'initialUsername' => $initialUsername,
-            'threadContextByConversation' => $threadContext,
+            'threadContextByConversation' => Inertia::defer(
+                function () use ($conversations, $escalationClient, $registrationsClient): array {
+                    $appealsFetch = $escalationClient->fetchAll();
+                    $ordersFetch = $registrationsClient->fetchAll();
+
+                    return DialogiThreadContextBuilder::build(
+                        $conversations,
+                        $appealsFetch['ok'] ? $appealsFetch['rows'] : [],
+                        $ordersFetch['ok'] ? $ordersFetch['rows'] : [],
+                    );
+                },
+            ),
         ]);
     }
 }

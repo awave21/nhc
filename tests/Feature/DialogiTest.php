@@ -121,7 +121,10 @@ class DialogiTest extends TestCase
             ->where('loadError', null)
             ->where('dialogsTruncated', false)
             ->where('dialogsNextOffset', 2)
-            ->has('threadContextByConversation')
+            ->missing('threadContextByConversation')
+            ->loadDeferredProps(fn (Assert $reload) => $reload
+                ->has('threadContextByConversation')
+            )
         );
     }
 
@@ -375,11 +378,14 @@ class DialogiTest extends TestCase
         $response->assertOk();
         $response->assertInertia(fn (Assert $page) => $page
             ->component('dialogi')
-            ->has('threadContextByConversation.42')
-            ->where('threadContextByConversation.42.latestAppeal.id', 'esc_new')
-            ->where('threadContextByConversation.42.latestAppeal.summary', 'Актуальное обращение')
-            ->where('threadContextByConversation.42.latestOrder.id', 'reg_1')
-            ->where('threadContextByConversation.42.latestOrder.summary', 'paid')
+            ->missing('threadContextByConversation')
+            ->loadDeferredProps(fn (Assert $reload) => $reload
+                ->has('threadContextByConversation.42')
+                ->where('threadContextByConversation.42.latestAppeal.id', 'esc_new')
+                ->where('threadContextByConversation.42.latestAppeal.summary', 'Актуальное обращение')
+                ->where('threadContextByConversation.42.latestOrder.id', 'reg_1')
+                ->where('threadContextByConversation.42.latestOrder.summary', 'paid')
+            )
         );
     }
 }
