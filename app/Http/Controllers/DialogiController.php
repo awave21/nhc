@@ -3,10 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Services\Dialogi\DialogiPresenter;
-use App\Services\Dialogi\DialogiThreadContextBuilder;
 use App\Services\Supabase\SupabaseDialogsClient;
-use App\Services\Supabase\SupabaseEscalationMessageClient;
-use App\Services\Supabase\SupabaseEventRegistrationsClient;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -16,17 +13,21 @@ class DialogiController extends Controller
     /**
      * Страница «Диалоги».
      *
-     * Все тяжёлые запросы выполняются в отложенных пропах (Inertia::defer),
-     * чтобы первичный рендер был мгновенным. Сами запросы в БД дополнительно
-     * защищены statement_timeout на стороне Supabase*Client — если конкретный
-     * запрос виснет, deferred-callback вернёт ошибку, и фронт покажет
-     * баннер «loadError», но 502 не случится.
+     * Шаг 1 в постепенном восстановлении: тянем только сами диалоги.
+     * Запросы в `escalation_message` и `event_registrations` (нужные
+     * только для баннеров «последнее обращение / последняя заявка»
+     * в шапке чата) временно отключены, потому что суммарное wall-time
+     * трёх запросов через PDO к удалённому Postgres выходило за
+     * upstream-таймаут прокси и страница падала в 502. Сами разделы
+     * «Обращения» и «Заявки» доступны как и раньше — на их страницах.
+     *
+     * Сам fetch диалогов по-прежнему отложен через Inertia::defer,
+     * чтобы первичный рендер был мгновенным, а данные подтягивались
+     * вторым XHR уже после показа страницы.
      */
     public function __invoke(
         Request $request,
         SupabaseDialogsClient $client,
-        SupabaseEscalationMessageClient $escalationClient,
-        SupabaseEventRegistrationsClient $registrationsClient,
     ): Response {
         $initialConversationId = $request->query('conversation');
         $initialUsername = $request->query('username');
@@ -40,8 +41,8 @@ class DialogiController extends Controller
 
         $user = $request->user();
 
-        // Общий кэш для группы «dialogs», чтобы fetchRows не вызывался
-        // по разу на каждый отложенный проп.
+        // Общий кэш на 5 отложенных пропсов группы «dialogs»: гарантия,
+        // что fetchRows() выполнится ровно один раз за партийный reload.
         $cache = ['fetched' => false, 'presented' => null, 'result' => null];
         $loadDialogs = function () use (&$cache, $client, $user): array {
             if (! $cache['fetched']) {
@@ -62,6 +63,9 @@ class DialogiController extends Controller
         return Inertia::render('dialogi', [
             'initialConversationId' => $initialConversationId,
             'initialUsername' => $initialUsername,
+            // Пустой объект — фронт по нему понимает «баннеров нет»,
+            // ничего не ломается, никаких запросов в БД не делается.
+            'threadContextByConversation' => (object) [],
             'conversations' => Inertia::defer(
                 function () use ($loadDialogs): array {
                     return $loadDialogs()['presented']['conversations'];
@@ -97,21 +101,6 @@ class DialogiController extends Controller
                     return (int) ($result['ok'] ? ($result['next_offset'] ?? 0) : 0);
                 },
                 'dialogs',
-            ),
-            'threadContextByConversation' => Inertia::defer(
-                function () use ($loadDialogs, $escalationClient, $registrationsClient): array {
-                    $conversations = $loadDialogs()['presented']['conversations'];
-
-                    $appealsFetch = $escalationClient->fetchAll();
-                    $ordersFetch = $registrationsClient->fetchAll();
-
-                    return DialogiThreadContextBuilder::build(
-                        $conversations,
-                        $appealsFetch['ok'] ? $appealsFetch['rows'] : [],
-                        $ordersFetch['ok'] ? $ordersFetch['rows'] : [],
-                    );
-                },
-                'thread_context',
             ),
         ]);
     }
