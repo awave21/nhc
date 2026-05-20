@@ -6,6 +6,7 @@ use App\Models\Supabase\DialogRow;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\QueryException;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -354,8 +355,12 @@ class SupabaseDialogsClient
         $offset = max(0, $startOffset);
         $rows = [];
         $truncated = false;
+        $timeoutMs = max(1000, (int) config('supabase.dialogs.db_statement_timeout_ms', 5000));
+        $startedAt = microtime(true);
 
         try {
+            $this->applyStatementTimeout($timeoutMs);
+
             for ($batchIndex = 0; $batchIndex < $maxBatches; $batchIndex++) {
                 $chunk = $this->buildDatabaseQuery($user)
                     ->offset($offset)
@@ -383,6 +388,10 @@ class SupabaseDialogsClient
         } catch (QueryException $exception) {
             Log::warning('supabase.dialogs.database_query_failed', [
                 'message' => $exception->getMessage(),
+                'sql_state' => $exception->errorInfo[0] ?? null,
+                'rows_loaded' => count($rows),
+                'duration_ms' => (int) round((microtime(true) - $startedAt) * 1000),
+                'timeout_ms' => $timeoutMs,
             ]);
 
             return [
@@ -393,7 +402,15 @@ class SupabaseDialogsClient
                 'has_more' => false,
                 'truncated' => false,
             ];
+        } finally {
+            $this->resetStatementTimeout();
         }
+
+        Log::info('supabase.dialogs.database_fetch_done', [
+            'rows' => count($rows),
+            'duration_ms' => (int) round((microtime(true) - $startedAt) * 1000),
+            'truncated' => $truncated,
+        ]);
 
         return [
             'ok' => true,
@@ -403,6 +420,43 @@ class SupabaseDialogsClient
             'has_more' => $truncated,
             'truncated' => $truncated,
         ];
+    }
+
+    /**
+     * Выставляет statement_timeout на текущей сессии (только для Postgres).
+     * На других драйверах ничего не делает — хелпер остаётся переносимым.
+     */
+    private function applyStatementTimeout(int $milliseconds): void
+    {
+        $connection = (string) config('supabase.connection', config('database.default'));
+
+        try {
+            if (DB::connection($connection)->getDriverName() !== 'pgsql') {
+                return;
+            }
+
+            DB::connection($connection)->statement('SET statement_timeout = '.$milliseconds);
+        } catch (\Throwable $e) {
+            Log::warning('supabase.dialogs.statement_timeout_apply_failed', [
+                'message' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    private function resetStatementTimeout(): void
+    {
+        $connection = (string) config('supabase.connection', config('database.default'));
+
+        try {
+            if (DB::connection($connection)->getDriverName() !== 'pgsql') {
+                return;
+            }
+
+            DB::connection($connection)->statement('SET statement_timeout = 0');
+        } catch (\Throwable $e) {
+            // Не критично: даже если соединение вернётся в пул с изменённым
+            // statement_timeout, следующий запрос всё равно перезапишет его.
+        }
     }
 
     /**

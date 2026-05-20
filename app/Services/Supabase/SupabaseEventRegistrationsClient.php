@@ -4,6 +4,7 @@ namespace App\Services\Supabase;
 
 use App\Models\Supabase\EventRegistration;
 use Illuminate\Database\QueryException;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -130,10 +131,14 @@ class SupabaseEventRegistrationsClient
     {
         $batchSize = max(1, (int) config('supabase.event_registrations.fetch_batch_size', 1000));
         $maxBatches = max(1, (int) config('supabase.event_registrations.fetch_max_batches', 50));
+        $timeoutMs = max(1000, (int) config('supabase.event_registrations.db_statement_timeout_ms', 5000));
         $rows = [];
         $offset = 0;
+        $startedAt = microtime(true);
 
         try {
+            $this->applyStatementTimeout($timeoutMs);
+
             for ($batchIndex = 0; $batchIndex < $maxBatches; $batchIndex++) {
                 $chunk = EventRegistration::query()
                     ->offset($offset)
@@ -157,6 +162,10 @@ class SupabaseEventRegistrationsClient
         } catch (QueryException $exception) {
             Log::warning('supabase.event_registrations.database_query_failed', [
                 'message' => $exception->getMessage(),
+                'sql_state' => $exception->errorInfo[0] ?? null,
+                'rows_loaded' => count($rows),
+                'duration_ms' => (int) round((microtime(true) - $startedAt) * 1000),
+                'timeout_ms' => $timeoutMs,
             ]);
 
             return [
@@ -164,13 +173,56 @@ class SupabaseEventRegistrationsClient
                 'rows' => [],
                 'error' => 'Не удалось загрузить заявки из базы данных.',
             ];
+        } finally {
+            $this->resetStatementTimeout();
         }
+
+        Log::info('supabase.event_registrations.database_fetch_done', [
+            'rows' => count($rows),
+            'duration_ms' => (int) round((microtime(true) - $startedAt) * 1000),
+        ]);
 
         return [
             'ok' => true,
             'rows' => $rows,
             'error' => null,
         ];
+    }
+
+    /**
+     * Выставляет statement_timeout на текущей сессии (только для Postgres).
+     * На других драйверах ничего не делает — хелпер остаётся переносимым.
+     */
+    private function applyStatementTimeout(int $milliseconds): void
+    {
+        $connection = (string) config('supabase.connection', config('database.default'));
+
+        try {
+            if (DB::connection($connection)->getDriverName() !== 'pgsql') {
+                return;
+            }
+
+            DB::connection($connection)->statement('SET statement_timeout = '.$milliseconds);
+        } catch (\Throwable $e) {
+            Log::warning('supabase.event_registrations.statement_timeout_apply_failed', [
+                'message' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    private function resetStatementTimeout(): void
+    {
+        $connection = (string) config('supabase.connection', config('database.default'));
+
+        try {
+            if (DB::connection($connection)->getDriverName() !== 'pgsql') {
+                return;
+            }
+
+            DB::connection($connection)->statement('SET statement_timeout = 0');
+        } catch (\Throwable $e) {
+            // Не критично: следующий запрос перезапишет statement_timeout.
+        }
     }
 
     /**

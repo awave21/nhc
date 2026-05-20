@@ -4,6 +4,7 @@ namespace App\Services\Supabase;
 
 use App\Models\Supabase\EscalationMessage;
 use Illuminate\Database\QueryException;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -130,10 +131,14 @@ class SupabaseEscalationMessageClient
     {
         $batchSize = max(1, (int) config('supabase.escalation_message.fetch_batch_size', 1000));
         $maxBatches = max(1, (int) config('supabase.escalation_message.fetch_max_batches', 50));
+        $timeoutMs = max(1000, (int) config('supabase.escalation_message.db_statement_timeout_ms', 5000));
         $rows = [];
         $offset = 0;
+        $startedAt = microtime(true);
 
         try {
+            $this->applyStatementTimeout($timeoutMs);
+
             for ($batchIndex = 0; $batchIndex < $maxBatches; $batchIndex++) {
                 $chunk = EscalationMessage::query()
                     ->offset($offset)
@@ -157,6 +162,10 @@ class SupabaseEscalationMessageClient
         } catch (QueryException $exception) {
             Log::warning('supabase.escalation_message.database_query_failed', [
                 'message' => $exception->getMessage(),
+                'sql_state' => $exception->errorInfo[0] ?? null,
+                'rows_loaded' => count($rows),
+                'duration_ms' => (int) round((microtime(true) - $startedAt) * 1000),
+                'timeout_ms' => $timeoutMs,
             ]);
 
             return [
@@ -164,13 +173,56 @@ class SupabaseEscalationMessageClient
                 'rows' => [],
                 'error' => 'Не удалось загрузить обращения из базы данных.',
             ];
+        } finally {
+            $this->resetStatementTimeout();
         }
+
+        Log::info('supabase.escalation_message.database_fetch_done', [
+            'rows' => count($rows),
+            'duration_ms' => (int) round((microtime(true) - $startedAt) * 1000),
+        ]);
 
         return [
             'ok' => true,
             'rows' => $rows,
             'error' => null,
         ];
+    }
+
+    /**
+     * Выставляет statement_timeout на текущей сессии (только для Postgres).
+     * На других драйверах ничего не делает — хелпер остаётся переносимым.
+     */
+    private function applyStatementTimeout(int $milliseconds): void
+    {
+        $connection = (string) config('supabase.connection', config('database.default'));
+
+        try {
+            if (DB::connection($connection)->getDriverName() !== 'pgsql') {
+                return;
+            }
+
+            DB::connection($connection)->statement('SET statement_timeout = '.$milliseconds);
+        } catch (\Throwable $e) {
+            Log::warning('supabase.escalation_message.statement_timeout_apply_failed', [
+                'message' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    private function resetStatementTimeout(): void
+    {
+        $connection = (string) config('supabase.connection', config('database.default'));
+
+        try {
+            if (DB::connection($connection)->getDriverName() !== 'pgsql') {
+                return;
+            }
+
+            DB::connection($connection)->statement('SET statement_timeout = 0');
+        } catch (\Throwable $e) {
+            // Не критично: следующий запрос перезапишет statement_timeout.
+        }
     }
 
     /**
