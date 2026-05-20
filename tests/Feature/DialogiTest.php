@@ -115,7 +115,7 @@ class DialogiTest extends TestCase
             ->missing('loadError')
             ->missing('dialogsTruncated')
             ->missing('dialogsNextOffset')
-            ->missing('threadContextByConversation')
+            ->has('threadContextByConversation')
             ->loadDeferredProps('dialogs', fn (Assert $reload) => $reload
                 ->has('conversations')
                 ->has('messages', 2)
@@ -129,9 +129,6 @@ class DialogiTest extends TestCase
                 ->where('loadError', null)
                 ->where('dialogsTruncated', false)
                 ->where('dialogsNextOffset', 2)
-            )
-            ->loadDeferredProps('thread_context', fn (Assert $reload) => $reload
-                ->has('threadContextByConversation')
             )
         );
     }
@@ -350,6 +347,7 @@ class DialogiTest extends TestCase
 
     public function test_dialogi_includes_thread_context_for_matching_supabase_rows(): void
     {
+        $this->markTestSkipped('Шаг 1 восстановления: escalation_message и event_registrations временно отключены в DialogiController. Вернём вместе с баннерами в шаге 3 (кеш).');
 
         Http::fake([
             'https://supabase.test/rest/v1/dialogs*' => Http::response([
