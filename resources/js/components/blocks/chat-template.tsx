@@ -1,4 +1,5 @@
 import { Form, Link } from '@inertiajs/react';
+import DialogiClearController from '@/actions/App/Http/Controllers/DialogiClearController';
 import {
     Brush,
     Camera,
@@ -91,11 +92,11 @@ function conversationIdForUsername(
 }
 
 function resolveInitialThreadId(
-    list: DialogiConversation[],
+    list: DialogiConversation[] | undefined,
     initialConversationId: string | null | undefined,
     initialUsername: string | null | undefined,
 ): string {
-    if (list.length === 0) {
+    if (! list || list.length === 0) {
         return '_default';
     }
 
@@ -118,8 +119,11 @@ function resolveInitialThreadId(
 }
 
 export type ChatTemplateProps = {
-    conversations: DialogiConversation[];
-    messages: DialogiMessage[];
+    /** Допускаем undefined: пропс отдаётся через Inertia::defer и при
+     *  первичной гидрации страницы может ещё не быть в page.props. */
+    conversations?: DialogiConversation[];
+    /** Аналогично — отложенный проп. */
+    messages?: DialogiMessage[];
     loadError?: string | null;
     dialogsHasMore?: boolean;
     loadMorePending?: boolean;
@@ -144,8 +148,8 @@ function sortMessages(a: DialogiMessage, b: DialogiMessage): number {
 }
 
 export const Home = ({
-    conversations,
-    messages,
+    conversations = [],
+    messages = [],
     loadError,
     dialogsHasMore = false,
     loadMorePending = false,
