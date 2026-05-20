@@ -15,6 +15,10 @@ class DialogiController extends Controller
 {
     /**
      * Страница «Диалоги»: данные из Supabase PostgREST (таблица dialogs).
+     *
+     * Тяжёлые Supabase-запросы (диалоги, эскалации, заявки) выполняются
+     * через Inertia::defer(), чтобы первичный рендер страницы был
+     * мгновенным и не упирался в upstream-таймаут на больших таблицах.
      */
     public function __invoke(
         Request $request,
@@ -22,8 +26,6 @@ class DialogiController extends Controller
         SupabaseEscalationMessageClient $escalationClient,
         SupabaseEventRegistrationsClient $registrationsClient,
     ): Response {
-        $result = $client->fetchRows($request->user());
-
         $initialConversationId = $request->query('conversation');
         $initialUsername = $request->query('username');
 
@@ -34,34 +36,70 @@ class DialogiController extends Controller
             ? $initialUsername
             : null;
 
-        if (! $result['ok']) {
-            $fallback = DialogiPresenter::fromRows([]);
+        $user = $request->user();
 
-            return Inertia::render('dialogi', [
-                'conversations' => $fallback['conversations'],
-                'messages' => [],
-                'loadError' => $result['error'],
-                'dialogsTruncated' => false,
-                'dialogsNextOffset' => 0,
-                'initialConversationId' => $initialConversationId,
-                'initialUsername' => $initialUsername,
-                'threadContextByConversation' => [],
-            ]);
-        }
+        // Один общий кэш для группы «dialogs», чтобы fetchRows не вызывался
+        // по разу на каждый отложенный проп.
+        $cache = ['fetched' => false, 'presented' => null, 'result' => null];
+        $loadDialogs = function () use (&$cache, $client, $user): array {
+            if (! $cache['fetched']) {
+                $result = $client->fetchRows($user);
+                $cache['result'] = $result;
+                $cache['presented'] = $result['ok']
+                    ? DialogiPresenter::fromRows($result['rows'])
+                    : DialogiPresenter::fromRows([]);
+                $cache['fetched'] = true;
+            }
 
-        $presented = DialogiPresenter::fromRows($result['rows']);
-        $conversations = $presented['conversations'];
+            return [
+                'result' => $cache['result'],
+                'presented' => $cache['presented'],
+            ];
+        };
 
         return Inertia::render('dialogi', [
-            'conversations' => $conversations,
-            'messages' => $presented['messages'],
-            'loadError' => null,
-            'dialogsTruncated' => (bool) ($result['truncated'] ?? false),
-            'dialogsNextOffset' => (int) ($result['next_offset'] ?? 0),
             'initialConversationId' => $initialConversationId,
             'initialUsername' => $initialUsername,
+            'conversations' => Inertia::defer(
+                function () use ($loadDialogs): array {
+                    return $loadDialogs()['presented']['conversations'];
+                },
+                'dialogs',
+            ),
+            'messages' => Inertia::defer(
+                function () use ($loadDialogs): array {
+                    return $loadDialogs()['presented']['messages'];
+                },
+                'dialogs',
+            ),
+            'loadError' => Inertia::defer(
+                function () use ($loadDialogs): ?string {
+                    $result = $loadDialogs()['result'];
+
+                    return $result['ok'] ? null : ($result['error'] ?? null);
+                },
+                'dialogs',
+            ),
+            'dialogsTruncated' => Inertia::defer(
+                function () use ($loadDialogs): bool {
+                    $result = $loadDialogs()['result'];
+
+                    return (bool) ($result['ok'] ? ($result['truncated'] ?? false) : false);
+                },
+                'dialogs',
+            ),
+            'dialogsNextOffset' => Inertia::defer(
+                function () use ($loadDialogs): int {
+                    $result = $loadDialogs()['result'];
+
+                    return (int) ($result['ok'] ? ($result['next_offset'] ?? 0) : 0);
+                },
+                'dialogs',
+            ),
             'threadContextByConversation' => Inertia::defer(
-                function () use ($conversations, $escalationClient, $registrationsClient): array {
+                function () use ($loadDialogs, $escalationClient, $registrationsClient): array {
+                    $conversations = $loadDialogs()['presented']['conversations'];
+
                     $appealsFetch = $escalationClient->fetchAll();
                     $ordersFetch = $registrationsClient->fetchAll();
 
@@ -71,6 +109,7 @@ class DialogiController extends Controller
                         $ordersFetch['ok'] ? $ordersFetch['rows'] : [],
                     );
                 },
+                'thread_context',
             ),
         ]);
     }

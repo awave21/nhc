@@ -109,20 +109,27 @@ class DialogiTest extends TestCase
         $response->assertOk();
         $response->assertInertia(fn (Assert $page) => $page
             ->component('dialogi')
-            ->has('conversations')
-            ->has('messages', 2)
-            ->where('conversations.0.title', '@ivan_nhc')
-            ->where(
-                'conversations.0.lastMessageAt',
-                fn ($value): bool => is_string($value) && str_contains($value, '10:01'),
-            )
-            ->where('messages.0.content', 'Привет')
-            ->where('messages.1.content', 'Здравствуйте, я Виктория.')
-            ->where('loadError', null)
-            ->where('dialogsTruncated', false)
-            ->where('dialogsNextOffset', 2)
+            ->missing('conversations')
+            ->missing('messages')
+            ->missing('loadError')
+            ->missing('dialogsTruncated')
+            ->missing('dialogsNextOffset')
             ->missing('threadContextByConversation')
-            ->loadDeferredProps(fn (Assert $reload) => $reload
+            ->loadDeferredProps('dialogs', fn (Assert $reload) => $reload
+                ->has('conversations')
+                ->has('messages', 2)
+                ->where('conversations.0.title', '@ivan_nhc')
+                ->where(
+                    'conversations.0.lastMessageAt',
+                    fn ($value): bool => is_string($value) && str_contains($value, '10:01'),
+                )
+                ->where('messages.0.content', 'Привет')
+                ->where('messages.1.content', 'Здравствуйте, я Виктория.')
+                ->where('loadError', null)
+                ->where('dialogsTruncated', false)
+                ->where('dialogsNextOffset', 2)
+            )
+            ->loadDeferredProps('thread_context', fn (Assert $reload) => $reload
                 ->has('threadContextByConversation')
             )
         );
@@ -161,21 +168,23 @@ class DialogiTest extends TestCase
         $response->assertOk();
         $response->assertInertia(fn (Assert $page) => $page
             ->component('dialogi')
-            ->has('conversations', 2)
-            ->has('messages', 2)
-            ->where('conversations.0.title', '@chat_b')
-            ->where('conversations.1.title', '@chat_a')
-            ->where(
-                'conversations.0.lastMessageAt',
-                fn ($value): bool => is_string($value) && str_contains($value, '11:00'),
+            ->loadDeferredProps('dialogs', fn (Assert $reload) => $reload
+                ->has('conversations', 2)
+                ->has('messages', 2)
+                ->where('conversations.0.title', '@chat_b')
+                ->where('conversations.1.title', '@chat_a')
+                ->where(
+                    'conversations.0.lastMessageAt',
+                    fn ($value): bool => is_string($value) && str_contains($value, '11:00'),
+                )
+                ->where(
+                    'conversations.1.lastMessageAt',
+                    fn ($value): bool => is_string($value) && str_contains($value, '10:00'),
+                )
+                ->where('loadError', null)
+                ->where('dialogsTruncated', false)
+                ->where('dialogsNextOffset', 2)
             )
-            ->where(
-                'conversations.1.lastMessageAt',
-                fn ($value): bool => is_string($value) && str_contains($value, '10:00'),
-            )
-            ->where('loadError', null)
-            ->where('dialogsTruncated', false)
-            ->where('dialogsNextOffset', 2)
         );
     }
 
@@ -229,12 +238,14 @@ class DialogiTest extends TestCase
         $response->assertOk();
         $response->assertInertia(fn (Assert $page) => $page
             ->component('dialogi')
-            ->has('messages', 2)
-            ->where('conversations.0.title', '@paged_user')
-            ->where('messages.0.content', 'Первое')
-            ->where('messages.1.content', 'Второе')
-            ->where('dialogsTruncated', false)
-            ->where('dialogsNextOffset', 2)
+            ->loadDeferredProps('dialogs', fn (Assert $reload) => $reload
+                ->has('messages', 2)
+                ->where('conversations.0.title', '@paged_user')
+                ->where('messages.0.content', 'Первое')
+                ->where('messages.1.content', 'Второе')
+                ->where('dialogsTruncated', false)
+                ->where('dialogsNextOffset', 2)
+            )
         );
 
         $dialogsRequests = collect(Http::recorded())
@@ -270,20 +281,22 @@ class DialogiTest extends TestCase
         $response->assertOk();
         $response->assertInertia(fn (Assert $page) => $page
             ->component('dialogi')
-            ->where('conversations.0.preview', function ($preview): bool {
-                if (! is_string($preview)) {
-                    return false;
-                }
+            ->loadDeferredProps('dialogs', fn (Assert $reload) => $reload
+                ->where('conversations.0.preview', function ($preview): bool {
+                    if (! is_string($preview)) {
+                        return false;
+                    }
 
-                return str_ends_with($preview, '...')
-                    && mb_strlen($preview) <= 80;
-            })
-            ->where(
-                'conversations.0.lastMessageAt',
-                fn ($value): bool => is_string($value) && str_contains($value, '10:00'),
+                    return str_ends_with($preview, '...')
+                        && mb_strlen($preview) <= 80;
+                })
+                ->where(
+                    'conversations.0.lastMessageAt',
+                    fn ($value): bool => is_string($value) && str_contains($value, '10:00'),
+                )
+                ->where('dialogsTruncated', false)
+                ->where('dialogsNextOffset', 1)
             )
-            ->where('dialogsTruncated', false)
-            ->where('dialogsNextOffset', 1)
         );
     }
 
@@ -326,10 +339,11 @@ class DialogiTest extends TestCase
         $response->assertOk();
         $response->assertInertia(fn (Assert $page) => $page
             ->component('dialogi')
-            ->where('loadError', fn ($value): bool => is_string($value) && $value !== '')
-            ->where('dialogsTruncated', false)
-            ->where('dialogsNextOffset', 0)
-            ->where('threadContextByConversation', [])
+            ->loadDeferredProps('dialogs', fn (Assert $reload) => $reload
+                ->where('loadError', fn ($value): bool => is_string($value) && $value !== '')
+                ->where('dialogsTruncated', false)
+                ->where('dialogsNextOffset', 0)
+            )
         );
     }
 
@@ -379,7 +393,7 @@ class DialogiTest extends TestCase
         $response->assertInertia(fn (Assert $page) => $page
             ->component('dialogi')
             ->missing('threadContextByConversation')
-            ->loadDeferredProps(fn (Assert $reload) => $reload
+            ->loadDeferredProps('thread_context', fn (Assert $reload) => $reload
                 ->has('threadContextByConversation.42')
                 ->where('threadContextByConversation.42.latestAppeal.id', 'esc_new')
                 ->where('threadContextByConversation.42.latestAppeal.summary', 'Актуальное обращение')

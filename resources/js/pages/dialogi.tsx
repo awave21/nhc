@@ -1,30 +1,28 @@
-import { Head, usePage } from '@inertiajs/react';
+import { Deferred, Head, usePage } from '@inertiajs/react';
 import { useCallback, useEffect, useState } from 'react';
 import { Home as ChatTemplateHome } from '@/components/blocks/chat-template';
 import { mergeDialogiData } from '@/lib/merge-dialogi';
 import { dialogi } from '@/routes';
 import dialogiRoutes from '@/routes/dialogi';
-import type { DialogiPageProps } from '@/types/dialogi';
+import type {
+    DialogiConversation,
+    DialogiMessage,
+    DialogiPageProps,
+} from '@/types/dialogi';
 
-export default function Dialogi({
-    conversations: initialConversations,
-    messages: initialMessages,
-    loadError,
-    dialogsTruncated: initialTruncated,
-    dialogsNextOffset: initialNextOffset,
-}: DialogiPageProps) {
+export default function Dialogi() {
     const page = usePage<DialogiPageProps>();
     const initialConversationId = page.props.initialConversationId ?? null;
     const initialUsername = page.props.initialUsername ?? null;
     const threadContextByConversation =
         page.props.threadContextByConversation ?? {};
 
-    const [bundle, setBundle] = useState({
-        conversations: initialConversations,
-        messages: initialMessages,
-    });
-    const [nextOffset, setNextOffset] = useState(initialNextOffset);
-    const [hasMore, setHasMore] = useState(initialTruncated);
+    const [bundle, setBundle] = useState<{
+        conversations: DialogiConversation[];
+        messages: DialogiMessage[];
+    }>({ conversations: [], messages: [] });
+    const [nextOffset, setNextOffset] = useState(0);
+    const [hasMore, setHasMore] = useState(false);
     const [loadMorePending, setLoadMorePending] = useState(false);
 
     const {
@@ -32,12 +30,16 @@ export default function Dialogi({
         messages: pMsg,
         dialogsTruncated: pTruncated,
         dialogsNextOffset: pNextOff,
+        loadError,
     } = page.props;
 
     useEffect(() => {
+        if (pConv === undefined || pMsg === undefined) {
+            return;
+        }
         setBundle({ conversations: pConv, messages: pMsg });
-        setNextOffset(pNextOff);
-        setHasMore(pTruncated);
+        setNextOffset(pNextOff ?? 0);
+        setHasMore(pTruncated ?? false);
     }, [pConv, pMsg, pNextOff, pTruncated]);
 
     const loadMore = useCallback(async () => {
@@ -61,8 +63,8 @@ export default function Dialogi({
             });
 
             const data: {
-                conversations?: DialogiPageProps['conversations'];
-                messages?: DialogiPageProps['messages'];
+                conversations?: DialogiConversation[];
+                messages?: DialogiMessage[];
                 nextOffset?: number;
                 hasMore?: boolean;
                 message?: string;
@@ -101,17 +103,32 @@ export default function Dialogi({
         <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-neutral-50/50 md:-mb-2 dark:bg-neutral-950/50">
             <Head title="Диалоги" />
             <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-                <ChatTemplateHome
-                    conversations={bundle.conversations}
-                    messages={bundle.messages}
-                    loadError={loadError}
-                    dialogsHasMore={hasMore}
-                    loadMorePending={loadMorePending}
-                    onLoadMore={hasMore ? loadMore : undefined}
-                    initialConversationId={initialConversationId}
-                    initialUsername={initialUsername}
-                    threadContextByConversation={threadContextByConversation}
-                />
+                <Deferred
+                    data={[
+                        'conversations',
+                        'messages',
+                        'loadError',
+                        'dialogsTruncated',
+                        'dialogsNextOffset',
+                    ]}
+                    fallback={
+                        <div className="flex h-full min-h-0 flex-1 items-center justify-center text-sm text-muted-foreground">
+                            Загружаем диалоги…
+                        </div>
+                    }
+                >
+                    <ChatTemplateHome
+                        conversations={bundle.conversations}
+                        messages={bundle.messages}
+                        loadError={loadError ?? null}
+                        dialogsHasMore={hasMore}
+                        loadMorePending={loadMorePending}
+                        onLoadMore={hasMore ? loadMore : undefined}
+                        initialConversationId={initialConversationId}
+                        initialUsername={initialUsername}
+                        threadContextByConversation={threadContextByConversation}
+                    />
+                </Deferred>
             </div>
         </div>
     );
