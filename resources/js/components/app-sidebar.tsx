@@ -6,6 +6,7 @@ import {
     LayoutGrid,
     MessageCircle,
     MessageSquareWarning,
+    Settings,
     UserCircle,
 } from 'lucide-react';
 import AppLogo from '@/components/app-logo';
@@ -23,6 +24,7 @@ import {
 } from '@/components/ui/sidebar';
 import { appeals, dashboard, dialogi, documentation, order, userProfiles } from '@/routes';
 import handbooks from '@/routes/handbooks';
+import { edit as editIntegrations } from '@/routes/integrations';
 import type { NavItem } from '@/types';
 
 const mainNavItems: NavItem[] = [
@@ -60,6 +62,11 @@ const mainNavItems: NavItem[] = [
         title: 'Справочники',
         href: handbooks.index(),
         icon: Database,
+    },
+    {
+        title: 'Настройки',
+        href: editIntegrations(),
+        icon: Settings,
     },
 ];
 

@@ -2,6 +2,7 @@ import { Deferred, Head, usePage } from '@inertiajs/react';
 import { useCallback, useEffect, useState } from 'react';
 import { Home as ChatTemplateHome } from '@/components/blocks/chat-template';
 import { mergeDialogiData } from '@/lib/merge-dialogi';
+import { useDialogiRealtime } from '@/lib/use-dialogi-realtime';
 import { dialogi } from '@/routes';
 import dialogiRoutes from '@/routes/dialogi';
 import type {
@@ -37,6 +38,7 @@ export default function Dialogi() {
         if (pConv === undefined || pMsg === undefined) {
             return;
         }
+
         setBundle({ conversations: pConv, messages: pMsg });
         setNextOffset(pNextOff ?? 0);
         setHasMore(pTruncated ?? false);
@@ -99,6 +101,18 @@ export default function Dialogi() {
         }
     }, [hasMore, loadMorePending, nextOffset]);
 
+    const handleRealtimeInsert = useCallback((message: DialogiMessage) => {
+        setBundle((b) => {
+            if (b.messages.some((m) => m.id === message.id)) {
+                return b;
+            }
+
+            return { ...b, messages: [...b.messages, message] };
+        });
+    }, []);
+
+    useDialogiRealtime(page.props.realtime, handleRealtimeInsert);
+
     return (
         <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-neutral-50/50 md:-mb-2 dark:bg-neutral-950/50">
             <Head title="Диалоги" />
@@ -127,6 +141,7 @@ export default function Dialogi() {
                         initialConversationId={initialConversationId}
                         initialUsername={initialUsername}
                         threadContextByConversation={threadContextByConversation}
+                        activeTakeovers={page.props.activeTakeovers ?? []}
                     />
                 </Deferred>
             </div>

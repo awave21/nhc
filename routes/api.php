@@ -1,5 +1,7 @@
 <?php
 
+use App\Http\Controllers\Api\V1\AgentChatController;
+use App\Http\Controllers\Api\V1\DialogiIntakeController;
 use App\Http\Controllers\Api\V1\KnowledgeBaseController;
 use App\Http\Controllers\Api\V1\KnowledgeBaseItemController;
 use App\Http\Controllers\Api\V1\QueryController;
@@ -13,4 +15,6 @@ Route::middleware('api.token')->prefix('v1')->group(function (): void {
     Route::put('knowledge-bases/{knowledgeBase}/items/{item}', [KnowledgeBaseItemController::class, 'update']);
     Route::delete('knowledge-bases/{knowledgeBase}/items/{item}', [KnowledgeBaseItemController::class, 'destroy']);
     Route::post('query', QueryController::class);
+    Route::post('agent/chat', AgentChatController::class);
+    Route::post('dialogi/intake', DialogiIntakeController::class);
 });
