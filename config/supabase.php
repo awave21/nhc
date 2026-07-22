@@ -69,6 +69,19 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Таблица notion_events — каталог ретритов и тарифов (синк из Notion)
+    |--------------------------------------------------------------------------
+    */
+
+    'notion_events' => [
+        'table' => env('SUPABASE_NOTION_EVENTS_TABLE', 'notion_events'),
+        'projects_table' => env('SUPABASE_PROJECTS_TABLE', 'projects'),
+        'fetch_cache_ttl_seconds' => (int) env('SUPABASE_NOTION_EVENTS_CACHE_TTL', 60),
+        'fetch_timeout_seconds' => (int) env('SUPABASE_NOTION_EVENTS_FETCH_TIMEOUT', 30),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Таблица диалогов
     |--------------------------------------------------------------------------
     |

@@ -7,6 +7,7 @@ import {
     MessageCircle,
     MessageSquareWarning,
     Settings,
+    Tent,
     UserCircle,
 } from 'lucide-react';
 import AppLogo from '@/components/app-logo';
@@ -22,7 +23,15 @@ import {
     SidebarMenuButton,
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
-import { appeals, dashboard, dialogi, documentation, order, userProfiles } from '@/routes';
+import {
+    appeals,
+    dashboard,
+    dialogi,
+    documentation,
+    order,
+    retreats,
+    userProfiles,
+} from '@/routes';
 import handbooks from '@/routes/handbooks';
 import { edit as editIntegrations } from '@/routes/integrations';
 import type { NavItem } from '@/types';
@@ -42,6 +51,11 @@ const mainNavItems: NavItem[] = [
         title: 'Заявки',
         href: order(),
         icon: ClipboardList,
+    },
+    {
+        title: 'Ретриты',
+        href: retreats(),
+        icon: Tent,
     },
     {
         title: 'Профили пользователей',

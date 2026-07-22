@@ -18,6 +18,7 @@ use App\Http\Controllers\Handbooks\HandbookItemsController;
 use App\Http\Controllers\Handbooks\HandbookQueryLogsController;
 use App\Http\Controllers\Handbooks\HandbooksController;
 use App\Http\Controllers\OrderController;
+use App\Http\Controllers\RetreatsController;
 use App\Http\Controllers\UserProfilesController;
 use Illuminate\Support\Facades\Route;
 use Laravel\Fortify\Features;
@@ -36,6 +37,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('dialogi/send', DialogiSendController::class)->name('dialogi.send');
     Route::delete('dialogi/message', DialogiMessageDeleteController::class)->name('dialogi.message.delete');
     Route::get('order', OrderController::class)->name('order');
+    Route::get('retreats', RetreatsController::class)->name('retreats');
     Route::get('user-profiles', UserProfilesController::class)->name('userProfiles');
     Route::get('appeals', AppealsController::class)->name('appeals');
     Route::get('documentation', DocumentationController::class)->name('documentation');
