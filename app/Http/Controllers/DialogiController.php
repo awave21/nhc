@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\DialogTakeover;
 use App\Services\Dialogi\DialogiPresenter;
 use App\Services\Dialogi\DialogiThreadContextBuilder;
 use App\Services\Supabase\SupabaseDialogsClient;
@@ -67,6 +68,12 @@ class DialogiController extends Controller
         return Inertia::render('dialogi', [
             'initialConversationId' => $initialConversationId,
             'initialUsername' => $initialUsername,
+            'realtime' => $this->realtimeConfig(),
+            'activeTakeovers' => DialogTakeover::query()
+                ->where('active_until', '>', now())
+                ->pluck('tg_chat_id')
+                ->map(fn ($id): string => (string) $id)
+                ->all(),
             'conversations' => Inertia::defer(
                 function () use ($loadDialogs): array {
                     return $loadDialogs()['presented']['conversations'];
@@ -119,5 +126,31 @@ class DialogiController extends Controller
                 'thread_context',
             ),
         ]);
+    }
+
+    /**
+     * Конфиг Supabase Realtime для подписки фронта на новые строки dialogs.
+     * apikey это публичный anon-ключ (безопасно отдавать в браузер).
+     *
+     * @return array{enabled: bool, url: ?string, apikey: ?string, schema: string, table: string}
+     */
+    private function realtimeConfig(): array
+    {
+        $baseUrl = (string) config('supabase.url');
+        $wsUrl = null;
+
+        if ($baseUrl !== '') {
+            $wsUrl = preg_replace('#^http#', 'ws', rtrim($baseUrl, '/')).'/realtime/v1/websocket';
+        }
+
+        $apikey = config('supabase.client_anon_key') ?: config('supabase.anon_key');
+
+        return [
+            'enabled' => (bool) config('supabase.realtime.enabled', true) && $wsUrl !== null && $apikey !== null,
+            'url' => $wsUrl,
+            'apikey' => $apikey ? (string) $apikey : null,
+            'schema' => 'public',
+            'table' => (string) config('supabase.dialogs.table', 'dialogs'),
+        ];
     }
 }

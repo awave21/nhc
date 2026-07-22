@@ -2,6 +2,7 @@
 
 namespace App\Services\Dialogi;
 
+use App\Models\MessageReply;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 
@@ -120,6 +121,10 @@ class DialogiPresenter
         $messages = [];
 
         foreach ($threads as $tid => $threadRows) {
+            // PHP приводит числовые строковые ключи массива обратно к int,
+            // поэтому нормализуем id беседы к строке (фронт ждёт string).
+            $tid = (string) $tid;
+
             usort($threadRows, function (array $a, array $b) use ($atCol, $idCol): int {
                 $cmp = self::compareRowTimes(data_get($a, $atCol), data_get($b, $atCol));
 
@@ -170,12 +175,15 @@ class DialogiPresenter
                     $createdAt = $createdInstant->toIso8601String();
                 }
 
+                $telegramMessageId = data_get($row, 'message_id');
+
                 $messages[] = [
                     'id' => (string) (data_get($row, $idCol) ?? Str::uuid()->toString()),
                     'conversationId' => $tid,
                     'role' => $role,
                     'content' => $body,
                     'createdAt' => $createdAt,
+                    'messageId' => $telegramMessageId !== null ? (int) $telegramMessageId : null,
                 ];
             }
         }
@@ -190,10 +198,55 @@ class DialogiPresenter
             return strcmp((string) $a['id'], (string) $b['id']);
         });
 
+        $messages = self::attachReplies($messages);
+
         return [
             'conversations' => $conversations,
             'messages' => $messages,
         ];
+    }
+
+    /**
+     * Восстанавливает цитату ответа (replyTo) из сохранённого снимка исходного
+     * сообщения (message_replies) по Telegram message_id самой реплики.
+     *
+     * @param  list<array<string, mixed>>  $messages
+     * @return list<array<string, mixed>>
+     */
+    private static function attachReplies(array $messages): array
+    {
+        $messageIds = array_values(array_filter(array_map(
+            static fn (array $m) => $m['messageId'] ?? null,
+            $messages,
+        )));
+
+        if ($messageIds === []) {
+            return $messages;
+        }
+
+        $replies = MessageReply::query()
+            ->whereIn('message_id', $messageIds)
+            ->whereNotNull('reply_to_content')
+            ->get()
+            ->keyBy('message_id');
+
+        if ($replies->isEmpty()) {
+            return $messages;
+        }
+
+        foreach ($messages as $i => $m) {
+            $mid = $m['messageId'] ?? null;
+            $reply = $mid !== null ? $replies->get($mid) : null;
+
+            if ($reply !== null) {
+                $messages[$i]['replyTo'] = [
+                    'content' => (string) $reply->reply_to_content,
+                    'role' => $reply->reply_to_role ?: 'agent',
+                ];
+            }
+        }
+
+        return $messages;
     }
 
     /**
@@ -251,6 +304,10 @@ class DialogiPresenter
         }
 
         $s = strtolower(trim((string) $raw));
+
+        if (in_array($s, ['manager', 'operator', 'human', 'staff'], true)) {
+            return 'manager';
+        }
 
         if (in_array($s, ['agent', 'assistant', 'bot', 'victoria', 'model', 'ai', 'system'], true)) {
             return 'agent';

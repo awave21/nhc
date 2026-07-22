@@ -147,3 +147,29 @@
         @apply bg-background text-foreground;
     }
 }
+
+/*
+ * Адаптив диалогов: на планшете/мобиле (< lg) показываем одну панель —
+ * список бесед либо открытый тред. react-resizable-panels не пробрасывает
+ * className на [data-panel], поэтому переключаем через data-mobile-view на
+ * группе и целимся в дочерние панели напрямую.
+ */
+@media (max-width: 1023.98px) {
+    [data-slot='resizable-panel-group'][data-mobile-view] > [data-panel] {
+        flex: 1 1 100% !important;
+    }
+
+    [data-slot='resizable-panel-group'][data-mobile-view='list']
+        > [data-panel]:last-of-type {
+        display: none !important;
+    }
+
+    [data-slot='resizable-panel-group'][data-mobile-view='thread']
+        > [data-panel]:first-of-type {
+        display: none !important;
+    }
+
+    [data-slot='resizable-panel-group'] > [data-slot='resizable-handle'] {
+        display: none !important;
+    }
+}
