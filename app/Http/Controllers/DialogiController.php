@@ -9,6 +9,7 @@ use App\Services\Supabase\SupabaseDialogsClient;
 use App\Services\Supabase\SupabaseEscalationMessageClient;
 use App\Services\Supabase\SupabaseEventRegistrationsClient;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -73,11 +74,21 @@ class DialogiController extends Controller
             // к БД (иначе при медленной удалённой БД — 502 на прямом заходе).
             'activeTakeovers' => Inertia::defer(
                 function (): array {
-                    return DialogTakeover::query()
-                        ->where('active_until', '>', now())
-                        ->pluck('tg_chat_id')
-                        ->map(fn ($id): string => (string) $id)
-                        ->all();
+                    // Устойчиво к сбою БД: если запрос упадёт (таймаут/недоступность),
+                    // не роняем весь defer-блок в 500 — просто отдаём пусто.
+                    try {
+                        return DialogTakeover::query()
+                            ->where('active_until', '>', now())
+                            ->pluck('tg_chat_id')
+                            ->map(fn ($id): string => (string) $id)
+                            ->all();
+                    } catch (\Throwable $e) {
+                        Log::warning('dialogi.active_takeovers_failed', [
+                            'error' => $e->getMessage(),
+                        ]);
+
+                        return [];
+                    }
                 },
                 'dialogs',
             ),
