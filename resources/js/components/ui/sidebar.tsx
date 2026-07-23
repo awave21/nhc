@@ -195,7 +195,12 @@ function Sidebar({
           }
           side={side}
         >
-          <div className="flex h-full w-full flex-col">{children}</div>
+          <div
+            className="flex h-full w-full flex-col"
+            style={{ paddingTop: "var(--app-top-inset)" }}
+          >
+            {children}
+          </div>
         </SheetContent>
       </Sheet>
     )
