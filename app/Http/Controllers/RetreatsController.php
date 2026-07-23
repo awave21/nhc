@@ -152,7 +152,7 @@ class RetreatsController extends Controller
             'type' => self::str($row['type'] ?? null) ?: null,
             'priceRub' => self::num($row['price_rub'] ?? null),
             'priceUsd' => self::num($row['price_usd'] ?? null),
-            'status' => (bool) ($row['status'] ?? false),
+            'status' => self::bool($row['status'] ?? false),
             'externalUrl' => self::str($row['external_url'] ?? null) ?: null,
         ];
     }
@@ -217,5 +217,26 @@ class RetreatsController extends Controller
     private static function num(mixed $value): ?float
     {
         return is_numeric($value) ? (float) $value : null;
+    }
+
+    /**
+     * Надёжный разбор булева статуса тарифа. Postgres через PDO может отдавать
+     * boolean строкой 't'/'f' — а (bool) 'f' в PHP это true, поэтому парсим явно.
+     */
+    private static function bool(mixed $value): bool
+    {
+        if (is_bool($value)) {
+            return $value;
+        }
+
+        if (is_int($value)) {
+            return $value === 1;
+        }
+
+        if (is_string($value)) {
+            return in_array(mb_strtolower(trim($value)), ['1', 't', 'true', 'yes', 'y'], true);
+        }
+
+        return (bool) $value;
     }
 }
