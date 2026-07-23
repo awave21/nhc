@@ -136,6 +136,10 @@ return [
         'fetch_max_batches' => (int) env('SUPABASE_DIALOGS_FETCH_MAX_BATCHES', 500),
 
         'fetch_timeout_seconds' => (int) env('SUPABASE_DIALOGS_FETCH_TIMEOUT', 60),
+
+        // Бюджет по времени (мс) на всю выборку диалогов, чтобы фоновой запрос
+        // не превышал таймаут прокси при медленной БД (иначе 502). 0 — без лимита.
+        'fetch_time_budget_ms' => (int) env('SUPABASE_DIALOGS_FETCH_TIME_BUDGET_MS', 6000),
     ],
 
     /*
