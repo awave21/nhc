@@ -4,11 +4,20 @@ namespace App\Http\Controllers;
 
 use App\Services\Supabase\SupabaseNotionEventsClient;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Inertia\Inertia;
 use Inertia\Response;
+use Throwable;
 
 class RetreatsController extends Controller
 {
+    /**
+     * Статусы проекта, считающиеся «активными» (в нижнем регистре).
+     *
+     * @var list<string>
+     */
+    private const ACTIVE_PROJECT_STATUSES = ['в работе', 'в очереди'];
+
     /**
      * Страница «Ретриты»: проекты из Supabase projects, а внутри каждого —
      * тарифы из notion_events (связь по project_id), с их статусом.
@@ -83,6 +92,7 @@ class RetreatsController extends Controller
                 'id' => null,
                 'name' => 'Без проекта',
                 'status' => null,
+                'isActive' => false,
                 'city' => null,
                 'date' => null,
                 'type' => null,
@@ -92,13 +102,10 @@ class RetreatsController extends Controller
             ];
         }
 
-        // Сначала проекты с активными тарифами, затем по дате начала.
+        // Сначала активные проекты (в работе / в очереди), затем по дате начала.
         usort($projects, static function (array $a, array $b): int {
-            $aActive = $a['activeTariffs'] > 0;
-            $bActive = $b['activeTariffs'] > 0;
-
-            if ($aActive !== $bActive) {
-                return $aActive ? -1 : 1;
+            if ($a['isActive'] !== $b['isActive']) {
+                return $a['isActive'] ? -1 : 1;
             }
 
             return strcmp((string) ($b['date'] ?? ''), (string) ($a['date'] ?? ''));
@@ -115,13 +122,17 @@ class RetreatsController extends Controller
     private function project(array $row, array $tariffs): array
     {
         $name = self::str($row['project_name'] ?? null);
+        $status = self::str($row['status'] ?? null);
+        $date = self::str($row['date'] ?? null);
 
         return [
             'id' => self::str($row['project_id'] ?? null) ?: null,
             'name' => $name !== '' ? $name : 'Без названия',
-            'status' => self::str($row['status'] ?? null) ?: null,
+            'status' => $status !== '' ? $status : null,
+            // Активен: статус «в работе»/«в очереди» И дата не в прошлом.
+            'isActive' => self::isActiveStatus($status) && ! self::isPastDate($date),
             'city' => self::str($row['location'] ?? null) ?: null,
-            'date' => self::str($row['date'] ?? null) ?: null,
+            'date' => $date !== '' ? $date : null,
             'type' => self::str($row['type'] ?? null) ?: null,
             'externalUrl' => self::str($row['url'] ?? null) ?: null,
             'activeTariffs' => $this->countActive($tariffs),
@@ -171,6 +182,31 @@ class RetreatsController extends Controller
         });
 
         return array_values($tariffs);
+    }
+
+    /**
+     * Статус проекта — «В работе» или «В очереди».
+     */
+    private static function isActiveStatus(string $status): bool
+    {
+        return in_array(mb_strtolower($status), self::ACTIVE_PROJECT_STATUSES, true);
+    }
+
+    /**
+     * Дата проекта в прошлом (раньше сегодняшнего дня)? Пустая или
+     * нераспознанная дата прошлой не считается — тогда судим по статусу.
+     */
+    private static function isPastDate(string $date): bool
+    {
+        if ($date === '') {
+            return false;
+        }
+
+        try {
+            return Carbon::parse($date)->startOfDay()->isBefore(Carbon::today());
+        } catch (Throwable) {
+            return false;
+        }
     }
 
     private static function str(mixed $value): string
