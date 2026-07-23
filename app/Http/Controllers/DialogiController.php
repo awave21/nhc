@@ -69,11 +69,18 @@ class DialogiController extends Controller
             'initialConversationId' => $initialConversationId,
             'initialUsername' => $initialUsername,
             'realtime' => $this->realtimeConfig(),
-            'activeTakeovers' => DialogTakeover::query()
-                ->where('active_until', '>', now())
-                ->pluck('tg_chat_id')
-                ->map(fn ($id): string => (string) $id)
-                ->all(),
+            // Отложенный проп: не блокирует первичный рендер /dialogi запросом
+            // к БД (иначе при медленной удалённой БД — 502 на прямом заходе).
+            'activeTakeovers' => Inertia::defer(
+                function (): array {
+                    return DialogTakeover::query()
+                        ->where('active_until', '>', now())
+                        ->pluck('tg_chat_id')
+                        ->map(fn ($id): string => (string) $id)
+                        ->all();
+                },
+                'dialogs',
+            ),
             'conversations' => Inertia::defer(
                 function () use ($loadDialogs): array {
                     return $loadDialogs()['presented']['conversations'];
