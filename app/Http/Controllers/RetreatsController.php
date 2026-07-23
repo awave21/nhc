@@ -220,8 +220,9 @@ class RetreatsController extends Controller
     }
 
     /**
-     * Надёжный разбор булева статуса тарифа. Postgres через PDO может отдавать
-     * boolean строкой 't'/'f' — а (bool) 'f' в PHP это true, поэтому парсим явно.
+     * Разбор статуса тарифа в булев «активен». Поддерживает и строковый формат
+     * 'active'/'inactive', и булев (в т.ч. Postgres 't'/'f' через PDO, где
+     * (bool) 'f' в PHP это true — поэтому парсим явно).
      */
     private static function bool(mixed $value): bool
     {
@@ -234,7 +235,7 @@ class RetreatsController extends Controller
         }
 
         if (is_string($value)) {
-            return in_array(mb_strtolower(trim($value)), ['1', 't', 'true', 'yes', 'y'], true);
+            return in_array(mb_strtolower(trim($value)), ['active', '1', 't', 'true', 'yes', 'y'], true);
         }
 
         return (bool) $value;
