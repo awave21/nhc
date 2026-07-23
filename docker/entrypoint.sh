@@ -14,9 +14,19 @@ if [ -f "$NGINX_TEMPLATE" ]; then
     sed "s/__LISTEN_PORT__/${PORT}/g" "$NGINX_TEMPLATE" >"$NGINX_CONF"
 fi
 
-mkdir -p storage/framework/{cache,sessions,testing,views} storage/logs bootstrap/cache
+# Явные пути (без bash brace-expansion — entrypoint на /bin/sh / BusyBox).
+# Обязательно storage/framework/cache/data — туда пишет файловый кеш; без неё
+# любые кеш-операции (включая троттлер логина Fortify) падают с 500.
+mkdir -p \
+    storage/framework/cache/data \
+    storage/framework/sessions \
+    storage/framework/testing \
+    storage/framework/views \
+    storage/logs \
+    storage/app/public \
+    bootstrap/cache
 chown -R www-data:www-data storage bootstrap/cache
-chmod -R ug+rwx storage bootstrap/cache
+chmod -R ug+rwX storage bootstrap/cache
 
 if [ -n "${APP_KEY}" ]; then
     php artisan config:cache --no-interaction || true
