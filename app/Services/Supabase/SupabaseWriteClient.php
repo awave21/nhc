@@ -2,6 +2,8 @@
 
 namespace App\Services\Supabase;
 
+use Illuminate\Database\ConnectionInterface;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use RuntimeException;
 
@@ -25,6 +27,10 @@ class SupabaseWriteClient
             'is_followup' => false,
         ], static fn ($value) => $value !== null);
 
+        if ($this->usesDatabaseDriver()) {
+            return $this->insertViaDatabase($table, $row);
+        }
+
         return $this->insert($table, $row);
     }
 
@@ -37,16 +43,28 @@ class SupabaseWriteClient
         $table = (string) config('supabase.chat_histories.table', 'chat_histories');
         $sessionColumn = (string) config('supabase.chat_histories.session_id_column', 'session_id');
 
+        $payload = [
+            'type' => 'ai',
+            'content' => $message,
+            'tool_calls' => [],
+            'additional_kwargs' => ['source' => 'manager'],
+            'response_metadata' => (object) [],
+            'invalid_tool_calls' => [],
+        ];
+
+        if ($this->usesDatabaseDriver()) {
+            $this->db()->table($table)->insert([
+                $sessionColumn => (string) $tgChatId,
+                // jsonb-колонка: Postgres неявно приводит валидный JSON-текст.
+                'message' => json_encode($payload, JSON_UNESCAPED_UNICODE),
+            ]);
+
+            return;
+        }
+
         $this->insert($table, [
             $sessionColumn => (string) $tgChatId,
-            'message' => [
-                'type' => 'ai',
-                'content' => $message,
-                'tool_calls' => [],
-                'additional_kwargs' => ['source' => 'manager'],
-                'response_metadata' => (object) [],
-                'invalid_tool_calls' => [],
-            ],
+            'message' => $payload,
         ]);
     }
 
@@ -58,6 +76,13 @@ class SupabaseWriteClient
     public function findDialogRow(int $id): ?array
     {
         $table = (string) config('supabase.dialogs.table', 'dialogs');
+
+        if ($this->usesDatabaseDriver()) {
+            $row = $this->db()->table($table)->where('id', $id)->first();
+
+            return $row !== null ? (array) $row : null;
+        }
+
         $baseUrl = rtrim((string) config('supabase.url'), '/');
 
         $response = Http::withHeaders($this->authHeaders())
@@ -86,6 +111,16 @@ class SupabaseWriteClient
     {
         $table = (string) config('supabase.chat_histories.table', 'chat_histories');
         $sessionColumn = (string) config('supabase.chat_histories.session_id_column', 'session_id');
+
+        if ($this->usesDatabaseDriver()) {
+            $this->db()->table($table)
+                ->where($sessionColumn, (string) $tgChatId)
+                ->whereRaw("message->>'content' = ?", [$content])
+                ->delete();
+
+            return;
+        }
+
         $baseUrl = rtrim((string) config('supabase.url'), '/');
 
         // Фильтр в query-строке; значение url-кодируем, ключи оставляем как есть
@@ -109,6 +144,13 @@ class SupabaseWriteClient
     public function deleteDialogRow(int $id): void
     {
         $table = (string) config('supabase.dialogs.table', 'dialogs');
+
+        if ($this->usesDatabaseDriver()) {
+            $this->db()->table($table)->where('id', $id)->delete();
+
+            return;
+        }
+
         $baseUrl = rtrim((string) config('supabase.url'), '/');
 
         // Фильтр должен идти в query-строке: у DELETE в HTTP-клиенте данные
@@ -120,6 +162,23 @@ class SupabaseWriteClient
         if (! $response->successful()) {
             throw new RuntimeException("Supabase delete from {$table} failed: ".$response->body());
         }
+    }
+
+    /**
+     * Прямая вставка в Postgres (боевой режим database). Возвращает вставленную
+     * строку с сгенерированными id/created_at.
+     *
+     * @param  array<string, mixed>  $row
+     * @return array<string, mixed>
+     */
+    private function insertViaDatabase(string $table, array $row): array
+    {
+        $db = $this->db();
+        $id = $db->table($table)->insertGetId($row);
+
+        $inserted = $db->table($table)->where('id', $id)->first();
+
+        return $inserted !== null ? (array) $inserted : array_merge($row, ['id' => $id]);
     }
 
     /**
@@ -142,6 +201,16 @@ class SupabaseWriteClient
         $data = $response->json();
 
         return is_array($data[0] ?? null) ? $data[0] : (is_array($data) ? $data : []);
+    }
+
+    private function usesDatabaseDriver(): bool
+    {
+        return strtolower((string) config('supabase.driver', 'postgrest')) === 'database';
+    }
+
+    private function db(): ConnectionInterface
+    {
+        return DB::connection((string) config('supabase.connection', config('database.default')));
     }
 
     /**
