@@ -37,6 +37,7 @@ type Project = {
     id: string | null;
     name: string;
     status: string | null;
+    isActive: boolean;
     city: string | null;
     date: string | null;
     type: string | null;
@@ -137,13 +138,7 @@ export default function Retreats({ projects, loadError }: RetreatsPageProps) {
         const q = search.trim().toLowerCase();
 
         return projects
-            .map((p) => ({
-                ...p,
-                tariffs: onlyActive
-                    ? p.tariffs.filter((t) => t.status)
-                    : p.tariffs,
-            }))
-            .filter((p) => p.tariffs.length > 0)
+            .filter((p) => !onlyActive || p.isActive)
             .filter((p) => {
                 if (q === '') {
                     return true;
@@ -163,7 +158,7 @@ export default function Retreats({ projects, loadError }: RetreatsPageProps) {
     );
 
     const totalTariffs = projects.reduce((n, p) => n + p.tariffs.length, 0);
-    const activeTariffs = projects.reduce((n, p) => n + p.activeTariffs, 0);
+    const activeProjects = projects.filter((p) => p.isActive).length;
 
     return (
         <div className="flex h-full min-h-0 flex-1 flex-col gap-4 overflow-y-auto rounded-2xl bg-neutral-50/50 p-6 dark:bg-neutral-950/50">
@@ -175,10 +170,11 @@ export default function Retreats({ projects, loadError }: RetreatsPageProps) {
                         Ретриты и тарифы
                     </h1>
                     <p className="text-sm text-muted-foreground">
-                        {projects.length} проектов · {totalTariffs} тарифов ·{' '}
+                        {projects.length} проектов ·{' '}
                         <span className="text-emerald-600 dark:text-emerald-400">
-                            {activeTariffs} активных
-                        </span>
+                            {activeProjects} активных
+                        </span>{' '}
+                        · {totalTariffs} тарифов
                     </p>
                 </div>
 
@@ -234,7 +230,14 @@ export default function Retreats({ projects, loadError }: RetreatsPageProps) {
                                             {p.name}
                                         </p>
                                         {p.status ? (
-                                            <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                                            <span
+                                                className={cn(
+                                                    'shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium',
+                                                    p.isActive
+                                                        ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
+                                                        : 'bg-muted text-muted-foreground',
+                                                )}
+                                            >
                                                 {p.status}
                                             </span>
                                         ) : null}
@@ -282,7 +285,14 @@ export default function Retreats({ projects, loadError }: RetreatsPageProps) {
                                         {selected.name}
                                     </SheetTitle>
                                     {selected.status ? (
-                                        <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                                        <span
+                                            className={cn(
+                                                'rounded-full px-2 py-0.5 text-[11px] font-medium',
+                                                selected.isActive
+                                                    ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
+                                                    : 'bg-muted text-muted-foreground',
+                                            )}
+                                        >
                                             {selected.status}
                                         </span>
                                     ) : null}
