@@ -29,6 +29,9 @@ COPY --from=frontend_build /app/public/build ./public/build
 COPY docker/nginx.conf /etc/nginx/http.d/default.conf.template
 COPY docker/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
+# Больше воркеров PHP-FPM (дефолт образа — всего 5), иначе медленные
+# defer-запросы /dialogi к удалённой БД занимают пул и дают 502.
+COPY docker/php-fpm-pool.conf /usr/local/etc/php-fpm.d/zz-pool.conf
 
 RUN chmod +x /usr/local/bin/entrypoint.sh \
     && mkdir -p /run/nginx /var/log/supervisor \
