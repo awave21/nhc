@@ -97,6 +97,12 @@ class SupabaseDialogsClient
         $batchSize = max(1, (int) config('supabase.dialogs.fetch_batch_size', 1000));
         $timeout = max(5, (int) config('supabase.dialogs.fetch_timeout_seconds', 60));
 
+        // Бюджет по времени на всю выборку: при медленной удалённой БД цикл
+        // из многих последовательных батчей иначе висит дольше таймаута прокси
+        // → 502. По истечении бюджета возвращаем что успели с флагом truncated.
+        $budgetMs = max(0, (int) config('supabase.dialogs.fetch_time_budget_ms', 6000));
+        $startedAt = microtime(true);
+
         $rows = [];
         $offset = max(0, $startOffset);
         $truncated = false;
@@ -130,6 +136,14 @@ class SupabaseDialogsClient
             }
 
             if ($batchIndex === $maxBatches - 1) {
+                $truncated = true;
+
+                break;
+            }
+
+            // Вышли за бюджет по времени — отдаём накопленное, остальное
+            // подтянется через «Загрузить ещё» (next_offset).
+            if ($budgetMs > 0 && (microtime(true) - $startedAt) * 1000 >= $budgetMs) {
                 $truncated = true;
 
                 break;
