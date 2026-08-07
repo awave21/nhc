@@ -63,7 +63,7 @@ class AppServiceProvider extends ServiceProvider
 
     protected function overrideOpenAiKeyFromSettings(): void
     {
-        if (($_SERVER['argv'][1] ?? null) === 'wayfinder:generate') {
+        if (PHP_SAPI === 'cli' || PHP_SAPI === 'phpdbg') {
             return;
         }
 

@@ -8,7 +8,8 @@ FROM node:22-alpine AS frontend_build
 
 WORKDIR /app
 RUN apk add --no-cache php84 php84-phar php84-openssl php84-mbstring php84-tokenizer php84-ctype php84-session php84-fileinfo php84-dom php84-xml php84-xmlwriter php84-simplexml php84-pdo php84-pdo_mysql php84-pdo_pgsql php84-curl php84-intl \
-    && ln -sf /usr/bin/php84 /usr/bin/php
+    && ln -sf /usr/bin/php84 /usr/bin/php \
+    && printf 'memory_limit=512M\n' > /etc/php84/conf.d/99-build-memory.ini
 COPY . .
 COPY --from=composer_deps /app/vendor ./vendor
 RUN npm ci
