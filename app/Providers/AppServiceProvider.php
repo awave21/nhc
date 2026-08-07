@@ -63,7 +63,7 @@ class AppServiceProvider extends ServiceProvider
 
     protected function overrideOpenAiKeyFromSettings(): void
     {
-        if ($this->app->runningConsoleCommand('wayfinder:generate')) {
+        if (($_SERVER['argv'][1] ?? null) === 'wayfinder:generate') {
             return;
         }
 
