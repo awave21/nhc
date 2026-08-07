@@ -14,6 +14,21 @@ if [ -f "$NGINX_TEMPLATE" ]; then
     sed "s/__LISTEN_PORT__/${PORT}/g" "$NGINX_TEMPLATE" >"$NGINX_CONF"
 fi
 
+if [ "${QUEUE_CONNECTION:-database}" != "sync" ]; then
+    cat > /etc/supervisor/conf.d/queue-worker.conf <<'EOF'
+[program:queue-worker]
+command=php /var/www/html/artisan queue:work --tries=3 --max-time=3600 --sleep=3
+autostart=true
+autorestart=true
+user=www-data
+priority=15
+stdout_logfile=/dev/stdout
+stdout_logfile_maxbytes=0
+stderr_logfile=/dev/stderr
+stderr_logfile_maxbytes=0
+EOF
+fi
+
 # Явные пути (без bash brace-expansion — entrypoint на /bin/sh / BusyBox).
 # Обязательно storage/framework/cache/data — туда пишет файловый кеш; без неё
 # любые кеш-операции (включая троттлер логина Fortify) падают с 500.
