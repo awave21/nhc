@@ -14,8 +14,10 @@ if [ -f "$NGINX_TEMPLATE" ]; then
     sed "s/__LISTEN_PORT__/${PORT}/g" "$NGINX_TEMPLATE" >"$NGINX_CONF"
 fi
 
+QUEUE_WORKER_CONF=/etc/supervisor/conf.d/queue-worker.conf
+rm -f "$QUEUE_WORKER_CONF"
 if [ "${QUEUE_CONNECTION:-database}" != "sync" ]; then
-    cat > /etc/supervisor/conf.d/queue-worker.conf <<'EOF'
+    cat > "$QUEUE_WORKER_CONF" <<'EOF'
 [program:queue-worker]
 command=php /var/www/html/artisan queue:work --tries=3 --max-time=3600 --sleep=3
 autostart=true
