@@ -5,7 +5,7 @@ import react from '@vitejs/plugin-react';
 import vitePlugin from 'laravel-vite-plugin';
 import { defineConfig } from 'vite';
 
-export default defineConfig({
+export default defineConfig(({ command }) => ({
     server: {
         host: '0.0.0.0',
     },
@@ -21,8 +21,12 @@ export default defineConfig({
             },
         }),
         tailwindcss(),
-        wayfinder({
-            formVariants: true,
-        }),
+        ...(command === 'serve'
+            ? [
+                  wayfinder({
+                      formVariants: true,
+                  }),
+              ]
+            : []),
     ],
-});
+}));
