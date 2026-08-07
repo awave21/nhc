@@ -2,10 +2,12 @@
 
 namespace App\Services\Supabase;
 
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use RuntimeException;
 use Throwable;
 
 class SupabaseNotionEventsClient
@@ -34,6 +36,74 @@ class SupabaseNotionEventsClient
             (string) config('supabase.notion_events.projects_table', 'projects'),
             'supabase.notion_events.fetch_projects',
         );
+    }
+
+    public function updateEventStatus(string $eventId, bool $status): void
+    {
+        $table = (string) config('supabase.notion_events.table', 'notion_events');
+
+        if ($this->usesDatabaseDriver()) {
+            $updated = $this->updateEventStatusInDatabase($table, $eventId, $status);
+
+            if ($updated === 0) {
+                throw new RuntimeException("Supabase row {$eventId} was not found.");
+            }
+
+            Cache::forget('supabase.notion_events.fetch_all');
+
+            return;
+        }
+
+        $baseUrl = rtrim((string) config('supabase.url'), '/');
+        $key = (string) config('supabase.service_role_key');
+
+        if ($baseUrl === '' || $key === '') {
+            throw new RuntimeException('Supabase service_role key is not configured.');
+        }
+
+        $response = Http::withHeaders([
+            'apikey' => $key,
+            'Authorization' => 'Bearer '.$key,
+            'Content-Type' => 'application/json',
+        ])->timeout(15)->patch(
+            "{$baseUrl}/rest/v1/{$table}?id=eq.".rawurlencode($eventId),
+            ['status' => $status],
+        );
+
+        if (! $response->successful()) {
+            throw new RuntimeException("Supabase update for {$eventId} failed: ".$response->body());
+        }
+
+        Cache::forget('supabase.notion_events.fetch_all');
+    }
+
+    private function updateEventStatusInDatabase(string $table, string $eventId, bool $status): int
+    {
+        $connection = (string) config('supabase.connection', config('database.default'));
+
+        return retry(
+            2,
+            fn (): int => DB::connection($connection)
+                ->table($table)
+                ->where('id', $eventId)
+                ->update(['status' => $status]),
+            250,
+            function (Throwable $exception) use ($connection): bool {
+                if (! $this->isTransientDatabaseConnectionFailure($exception)) {
+                    return false;
+                }
+
+                DB::purge($connection);
+
+                return true;
+            },
+        );
+    }
+
+    private function isTransientDatabaseConnectionFailure(Throwable $exception): bool
+    {
+        return $exception instanceof QueryException
+            && preg_match('/SQLSTATE\\[08\\d{3}\\]/', $exception->getMessage()) === 1;
     }
 
     /**

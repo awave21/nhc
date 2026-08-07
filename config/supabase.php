@@ -7,14 +7,14 @@ return [
     |--------------------------------------------------------------------------
     |
     | database — прямое подключение к PostgreSQL через Laravel (models / query
-    | builder). Нужны только DB_* и при необходимости SUPABASE_DB_CONNECTION;
-    | SUPABASE_URL и API-ключи не используются.
+    | builder). Нужны только SUPABASE_DB_* и при необходимости
+    | SUPABASE_DB_CONNECTION; SUPABASE_URL и API-ключи не используются.
     |
     | postgrest — HTTP-клиент к PostgREST (/rest/v1); нужны SUPABASE_URL и ключ.
     |
     */
     'driver' => env('SUPABASE_DRIVER', 'postgrest'),
-    'connection' => env('SUPABASE_DB_CONNECTION', env('DB_CONNECTION', 'pgsql')),
+    'connection' => env('SUPABASE_DB_CONNECTION', 'supabase'),
 
     /*
     |--------------------------------------------------------------------------

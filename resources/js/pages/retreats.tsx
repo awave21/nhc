@@ -1,13 +1,17 @@
-import { Head } from '@inertiajs/react';
+import { Head, router } from '@inertiajs/react';
 import {
     CalendarDays,
     ChevronRight,
+    CircleCheck,
+    CircleX,
     ExternalLink,
+    Loader2,
     MapPin,
     Search,
     Tag,
 } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { toast } from 'sonner';
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -22,6 +26,7 @@ import {
 } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
 import { retreats as retreatsRoute } from '@/routes';
+import retreatsTariffs from '@/routes/retreats';
 
 type Tariff = {
     id: number | null;
@@ -81,24 +86,60 @@ function formatPrice(tariff: Tariff): string | null {
     return null;
 }
 
-function StatusBadge({ active }: { active: boolean }) {
+function withTariffStatus(
+    projects: Project[],
+    tariffId: number,
+    status: boolean,
+): Project[] {
+    return projects.map((project) => {
+        if (!project.tariffs.some((tariff) => tariff.id === tariffId)) {
+            return project;
+        }
+
+        const tariffs = project.tariffs.map((tariff) =>
+            tariff.id === tariffId ? { ...tariff, status } : tariff,
+        );
+
+        return {
+            ...project,
+            activeTariffs: tariffs.filter((tariff) => tariff.status).length,
+            tariffs,
+        };
+    });
+}
+
+function StatusBadge({
+    active,
+    disabled = false,
+    onClick,
+}: {
+    active: boolean;
+    disabled?: boolean;
+    onClick?: () => void;
+}) {
+    const Icon = active ? CircleCheck : CircleX;
+
     return (
-        <span
+        <button
+            type="button"
+            disabled={disabled}
+            aria-label={active ? 'Выключить тариф' : 'Включить тариф'}
+            aria-pressed={active}
+            onClick={onClick}
             className={cn(
-                'inline-flex shrink-0 items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium',
+                'inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 disabled:pointer-events-none disabled:opacity-60',
                 active
-                    ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
-                    : 'bg-muted text-muted-foreground',
+                    ? 'bg-emerald-500/15 text-emerald-600 hover:bg-emerald-500/25 dark:text-emerald-400'
+                    : 'bg-muted text-muted-foreground hover:bg-muted/80',
             )}
         >
-            <span
-                className={cn(
-                    'size-1.5 rounded-full',
-                    active ? 'bg-emerald-500' : 'bg-muted-foreground/50',
-                )}
-            />
+            {disabled ? (
+                <Loader2 className="size-3.5 animate-spin" />
+            ) : (
+                <Icon className="size-3.5" />
+            )}
             {active ? 'Активен' : 'Неактивен'}
-        </span>
+        </button>
     );
 }
 
@@ -130,14 +171,22 @@ function ProjectMeta({ project }: { project: Project }) {
 }
 
 export default function Retreats({ projects, loadError }: RetreatsPageProps) {
+    const [projectList, setProjectList] = useState(projects);
     const [search, setSearch] = useState('');
     const [onlyActive, setOnlyActive] = useState(false);
     const [selectedId, setSelectedId] = useState<string | null>(null);
+    const [updatingTariffId, setUpdatingTariffId] = useState<number | null>(
+        null,
+    );
+
+    useEffect(() => {
+        setProjectList(projects);
+    }, [projects]);
 
     const filtered = useMemo(() => {
         const q = search.trim().toLowerCase();
 
-        return projects
+        return projectList
             .filter((p) => !onlyActive || p.isActive)
             .filter((p) => {
                 if (q === '') {
@@ -150,15 +199,50 @@ export default function Retreats({ projects, loadError }: RetreatsPageProps) {
                     p.tariffs.some((t) => t.name.toLowerCase().includes(q))
                 );
             });
-    }, [projects, search, onlyActive]);
+    }, [projectList, search, onlyActive]);
 
     const selected = useMemo(
         () => filtered.find((p) => (p.id ?? 'orphan') === selectedId) ?? null,
         [filtered, selectedId],
     );
 
-    const totalTariffs = projects.reduce((n, p) => n + p.tariffs.length, 0);
-    const activeProjects = projects.filter((p) => p.isActive).length;
+    const totalTariffs = projectList.reduce((n, p) => n + p.tariffs.length, 0);
+    const totalActiveTariffs = projectList.reduce(
+        (n, p) => n + p.activeTariffs,
+        0,
+    );
+    const activeProjects = projectList.filter((p) => p.isActive).length;
+
+    function toggleTariffStatus(
+        tariffId: number | null,
+        status: boolean,
+    ): void {
+        if (tariffId === null || updatingTariffId !== null) {
+            return;
+        }
+
+        const nextStatus = !status;
+        setUpdatingTariffId(tariffId);
+        setProjectList((current) =>
+            withTariffStatus(current, tariffId, nextStatus),
+        );
+
+        router.patch(
+            retreatsTariffs.tariffs.status(tariffId).url,
+            { status: nextStatus },
+            {
+                preserveScroll: true,
+                preserveState: true,
+                onError: () => {
+                    setProjectList((current) =>
+                        withTariffStatus(current, tariffId, status),
+                    );
+                    toast.error('Не удалось изменить статус тарифа');
+                },
+                onFinish: () => setUpdatingTariffId(null),
+            },
+        );
+    }
 
     return (
         <div className="flex h-full min-h-0 flex-1 flex-col gap-4 overflow-y-auto rounded-2xl bg-neutral-50/50 p-6 dark:bg-neutral-950/50">
@@ -174,7 +258,10 @@ export default function Retreats({ projects, loadError }: RetreatsPageProps) {
                         <span className="text-emerald-600 dark:text-emerald-400">
                             {activeProjects} активных
                         </span>{' '}
-                        · {totalTariffs} тарифов
+                        · {totalTariffs} тарифов ·{' '}
+                        <span className="text-emerald-600 dark:text-emerald-400">
+                            {totalActiveTariffs} активных тарифов
+                        </span>
                     </p>
                 </div>
 
@@ -338,6 +425,16 @@ export default function Retreats({ projects, loadError }: RetreatsPageProps) {
                                                     </p>
                                                     <StatusBadge
                                                         active={t.status}
+                                                        disabled={
+                                                            updatingTariffId ===
+                                                            t.id
+                                                        }
+                                                        onClick={() =>
+                                                            toggleTariffStatus(
+                                                                t.id,
+                                                                t.status,
+                                                            )
+                                                        }
                                                     />
                                                 </div>
                                                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
