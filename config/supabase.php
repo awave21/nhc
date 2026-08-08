@@ -13,7 +13,7 @@ return [
     | postgrest — HTTP-клиент к PostgREST (/rest/v1); нужны SUPABASE_URL и ключ.
     |
     */
-    'driver' => env('SUPABASE_DRIVER', 'postgrest'),
+    'driver' => 'postgrest',
     'connection' => env('SUPABASE_DB_CONNECTION', 'supabase'),
 
     /*

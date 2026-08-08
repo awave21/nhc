@@ -10,6 +10,7 @@ class SupabaseDatabaseConfigurationTest extends TestCase
     {
         $connection = config('database.connections.supabase');
 
+        $this->assertSame('postgrest', config('supabase.driver'));
         $this->assertSame('supabase', config('supabase.connection'));
         $this->assertSame('pgsql', $connection['driver']);
         $this->assertArrayHasKey('url', $connection);
