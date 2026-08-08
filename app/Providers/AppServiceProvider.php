@@ -2,11 +2,9 @@
 
 namespace App\Providers;
 
-use App\Auth\SupabaseUserProvider;
 use App\Models\AppSetting;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Events\ConnectionEstablished;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
@@ -32,8 +30,6 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        Auth::provider('supabase', fn (): SupabaseUserProvider => new SupabaseUserProvider);
-
         $this->configureDefaults();
         $this->configurePostgresStatementTimeout();
         $this->overrideOpenAiKeyFromSettings();

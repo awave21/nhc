@@ -144,7 +144,14 @@ return [
     */
 
     'features' => [
-        // Supabase Auth owns account creation, password recovery, and 2FA.
+        Features::registration(),
+        Features::resetPasswords(),
+        Features::emailVerification(),
+        Features::twoFactorAuthentication([
+            'confirm' => true,
+            'confirmPassword' => true,
+            // 'window' => 0
+        ]),
     ],
 
 ];
