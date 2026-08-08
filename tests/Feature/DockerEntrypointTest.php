@@ -11,6 +11,7 @@ class DockerEntrypointTest extends TestCase
         $poolConfiguration = file_get_contents(base_path('docker/php-fpm-pool.conf'));
 
         $this->assertNotFalse($poolConfiguration);
+        $this->assertStringContainsString('php_admin_value[memory_limit] = 256M', $poolConfiguration);
         $this->assertStringContainsString('php_admin_flag[log_errors] = on', $poolConfiguration);
         $this->assertStringContainsString(
             'php_admin_value[error_log] = /var/www/html/storage/logs/php-fpm.log',
