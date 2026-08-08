@@ -4,6 +4,9 @@ namespace App\Providers;
 
 use App\Actions\Fortify\CreateNewUser;
 use App\Actions\Fortify\ResetUserPassword;
+use App\Auth\SupabaseUserProvider;
+use App\Models\User;
+use App\Services\Supabase\SupabaseAuthClient;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
@@ -29,6 +32,7 @@ class FortifyServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->configureActions();
+        $this->configureAuthentication();
         $this->configureViews();
         $this->configureRateLimiting();
     }
@@ -40,6 +44,27 @@ class FortifyServiceProvider extends ServiceProvider
     {
         Fortify::resetUserPasswordsUsing(ResetUserPassword::class);
         Fortify::createUsersUsing(CreateNewUser::class);
+    }
+
+    /**
+     * Authenticate against Supabase GoTrue instead of Laravel's database provider.
+     */
+    private function configureAuthentication(): void
+    {
+        Fortify::authenticateUsing(function (Request $request): ?User {
+            $user = app(SupabaseAuthClient::class)->signInWithPassword(
+                $request->string('email')->toString(),
+                $request->string('password')->toString(),
+            );
+
+            if ($user === null) {
+                return null;
+            }
+
+            $request->session()->put('supabase.auth.user', $user);
+
+            return app(SupabaseUserProvider::class)->userFromAttributes($user);
+        });
     }
 
     /**
