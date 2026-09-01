@@ -18,7 +18,9 @@ class UpdateRetreatProjectStatusRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'status' => ['required', Rule::in(['active', 'inactive'])],
+            // Активация проекта пишет «В работе», деактивация — inactive.
+            // active оставлен для обратной совместимости.
+            'status' => ['required', Rule::in(['В работе', 'active', 'inactive'])],
         ];
     }
 }

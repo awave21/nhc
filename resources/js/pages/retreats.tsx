@@ -318,7 +318,8 @@ export default function Retreats({ projects, loadError }: RetreatsPageProps) {
         }
 
         const nextActive = !isActive;
-        const nextStatus = nextActive ? 'active' : 'inactive';
+        // При активации проекта в БД пишем «В работе», при деактивации — inactive.
+        const nextStatus = nextActive ? 'В работе' : 'inactive';
         setUpdatingProjectId(projectId);
         setProjectList((current) =>
             withProjectStatus(current, projectId, nextActive, nextStatus),
