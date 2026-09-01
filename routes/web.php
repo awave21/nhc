@@ -18,6 +18,7 @@ use App\Http\Controllers\Handbooks\HandbookItemsController;
 use App\Http\Controllers\Handbooks\HandbookQueryLogsController;
 use App\Http\Controllers\Handbooks\HandbooksController;
 use App\Http\Controllers\OrderController;
+use App\Http\Controllers\RetreatProjectStatusController;
 use App\Http\Controllers\RetreatsController;
 use App\Http\Controllers\RetreatTariffStatusController;
 use App\Http\Controllers\UserProfilesController;
@@ -40,6 +41,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('order', OrderController::class)->name('order');
     Route::get('retreats', RetreatsController::class)->name('retreats');
     Route::patch('retreats/tariffs/{tariff}/status', RetreatTariffStatusController::class)->name('retreats.tariffs.status');
+    Route::patch('retreats/projects/{project}/status', RetreatProjectStatusController::class)->name('retreats.projects.status');
     Route::get('user-profiles', UserProfilesController::class)->name('userProfiles');
     Route::get('appeals', AppealsController::class)->name('appeals');
     Route::get('documentation', DocumentationController::class)->name('documentation');

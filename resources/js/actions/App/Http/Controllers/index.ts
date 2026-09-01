@@ -9,6 +9,7 @@ import DialogiMessageDeleteController from './DialogiMessageDeleteController'
 import OrderController from './OrderController'
 import RetreatsController from './RetreatsController'
 import RetreatTariffStatusController from './RetreatTariffStatusController'
+import RetreatProjectStatusController from './RetreatProjectStatusController'
 import UserProfilesController from './UserProfilesController'
 import AppealsController from './AppealsController'
 import DocumentationController from './DocumentationController'
@@ -28,6 +29,7 @@ const Controllers = {
     OrderController: Object.assign(OrderController, OrderController),
     RetreatsController: Object.assign(RetreatsController, RetreatsController),
     RetreatTariffStatusController: Object.assign(RetreatTariffStatusController, RetreatTariffStatusController),
+    RetreatProjectStatusController: Object.assign(RetreatProjectStatusController, RetreatProjectStatusController),
     UserProfilesController: Object.assign(UserProfilesController, UserProfilesController),
     AppealsController: Object.assign(AppealsController, AppealsController),
     DocumentationController: Object.assign(DocumentationController, DocumentationController),

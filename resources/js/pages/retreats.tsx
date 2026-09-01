@@ -2,10 +2,7 @@ import { Head, router } from '@inertiajs/react';
 import {
     CalendarDays,
     ChevronRight,
-    CircleCheck,
-    CircleX,
     ExternalLink,
-    Loader2,
     MapPin,
     Search,
     Tag,
@@ -124,38 +121,86 @@ function withTariffStatus(
     });
 }
 
-function StatusBadge({
-    active,
-    disabled = false,
-    onClick,
-}: {
-    active: boolean;
-    disabled?: boolean;
-    onClick?: () => void;
-}) {
-    const Icon = active ? CircleCheck : CircleX;
+function withProjectStatus(
+    projects: Project[],
+    projectId: string,
+    isActive: boolean,
+    status: string,
+): Project[] {
+    return projects.map((project) =>
+        project.id === projectId ? { ...project, isActive, status } : project,
+    );
+}
 
+// Свитч включения/выключения (без сторонних зависимостей).
+function ToggleSwitch({
+    checked,
+    disabled = false,
+    onChange,
+    ariaLabel,
+}: {
+    checked: boolean;
+    disabled?: boolean;
+    onChange?: () => void;
+    ariaLabel?: string;
+}) {
     return (
         <button
             type="button"
+            role="switch"
+            aria-checked={checked}
+            aria-label={ariaLabel}
             disabled={disabled}
-            aria-label={active ? 'Выключить тариф' : 'Включить тариф'}
-            aria-pressed={active}
-            onClick={onClick}
+            onClick={onChange}
             className={cn(
-                'inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 disabled:pointer-events-none disabled:opacity-60',
-                active
-                    ? 'bg-emerald-500/15 text-emerald-600 hover:bg-emerald-500/25 dark:text-emerald-400'
-                    : 'bg-muted text-muted-foreground hover:bg-muted/80',
+                'relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-60',
+                disabled ? '' : 'cursor-pointer',
+                checked ? 'bg-emerald-500' : 'bg-muted-foreground/30',
             )}
         >
-            {disabled ? (
-                <Loader2 className="size-3.5 animate-spin" />
-            ) : (
-                <Icon className="size-3.5" />
-            )}
-            {active ? 'Активен' : 'Неактивен'}
+            <span
+                className={cn(
+                    'inline-block size-4 rounded-full bg-white shadow-sm transition-transform',
+                    checked ? 'translate-x-4' : 'translate-x-0.5',
+                )}
+            />
         </button>
+    );
+}
+
+// Свитч статуса тарифа/проекта с подписью «Активен/Неактивен».
+function StatusToggle({
+    active,
+    disabled = false,
+    onChange,
+    ariaLabel,
+    label,
+}: {
+    active: boolean;
+    disabled?: boolean;
+    onChange?: () => void;
+    ariaLabel?: string;
+    label?: string;
+}) {
+    return (
+        <div className="flex shrink-0 items-center gap-2">
+            <ToggleSwitch
+                checked={active}
+                disabled={disabled}
+                onChange={onChange}
+                ariaLabel={ariaLabel}
+            />
+            <span
+                className={cn(
+                    'text-[11px] font-medium',
+                    active
+                        ? 'text-emerald-600 dark:text-emerald-400'
+                        : 'text-muted-foreground',
+                )}
+            >
+                {label ?? (active ? 'Активен' : 'Неактивен')}
+            </span>
+        </div>
     );
 }
 
@@ -192,6 +237,9 @@ export default function Retreats({ projects, loadError }: RetreatsPageProps) {
     const [onlyActive, setOnlyActive] = useState(false);
     const [selectedId, setSelectedId] = useState<string | null>(null);
     const [updatingTariffId, setUpdatingTariffId] = useState<number | null>(
+        null,
+    );
+    const [updatingProjectId, setUpdatingProjectId] = useState<string | null>(
         null,
     );
 
@@ -260,6 +308,44 @@ export default function Retreats({ projects, loadError }: RetreatsPageProps) {
         );
     }
 
+    function toggleProjectStatus(
+        projectId: string | null,
+        isActive: boolean,
+        currentStatus: string,
+    ): void {
+        if (projectId === null || updatingProjectId !== null) {
+            return;
+        }
+
+        const nextActive = !isActive;
+        const nextStatus = nextActive ? 'active' : 'inactive';
+        setUpdatingProjectId(projectId);
+        setProjectList((current) =>
+            withProjectStatus(current, projectId, nextActive, nextStatus),
+        );
+
+        router.patch(
+            retreatsTariffs.projects.status(projectId).url,
+            { status: nextStatus },
+            {
+                preserveScroll: true,
+                preserveState: true,
+                onError: () => {
+                    setProjectList((current) =>
+                        withProjectStatus(
+                            current,
+                            projectId,
+                            isActive,
+                            currentStatus,
+                        ),
+                    );
+                    toast.error('Не удалось изменить статус проекта');
+                },
+                onFinish: () => setUpdatingProjectId(null),
+            },
+        );
+    }
+
     return (
         <div className="flex h-full min-h-0 flex-1 flex-col gap-4 overflow-y-auto rounded-2xl bg-neutral-50/50 p-6 dark:bg-neutral-950/50">
             <Head title="Ретриты" />
@@ -281,14 +367,14 @@ export default function Retreats({ projects, loadError }: RetreatsPageProps) {
                     </p>
                 </div>
 
-                <div className="flex items-center gap-2">
-                    <div className="relative">
+                <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+                    <div className="relative w-full sm:w-auto">
                         <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
                         <Input
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
                             placeholder="Поиск по проекту, городу, тарифу"
-                            className="w-64 max-w-full pl-9"
+                            className="w-full pl-9 sm:w-64"
                         />
                     </div>
                     <Button
@@ -296,6 +382,7 @@ export default function Retreats({ projects, loadError }: RetreatsPageProps) {
                         variant={onlyActive ? 'default' : 'outline'}
                         size="sm"
                         onClick={() => setOnlyActive((v) => !v)}
+                        className="w-full shrink-0 sm:w-auto"
                     >
                         Только активные
                     </Button>
@@ -390,16 +477,29 @@ export default function Retreats({ projects, loadError }: RetreatsPageProps) {
                                         {selected.name}
                                     </SheetTitle>
                                     {selected.status ? (
-                                        <span
-                                            className={cn(
-                                                'rounded-full px-2 py-0.5 text-[11px] font-medium',
+                                        <StatusToggle
+                                            active={selected.isActive}
+                                            disabled={
+                                                selected.id === null ||
+                                                updatingProjectId ===
+                                                    selected.id
+                                            }
+                                            ariaLabel={
                                                 selected.isActive
-                                                    ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
-                                                    : 'bg-muted text-muted-foreground',
+                                                    ? 'Сделать проект неактивным'
+                                                    : 'Сделать проект активным'
+                                            }
+                                            label={projectStatusLabel(
+                                                selected.status,
                                             )}
-                                        >
-                                            {projectStatusLabel(selected.status)}
-                                        </span>
+                                            onChange={() =>
+                                                toggleProjectStatus(
+                                                    selected.id,
+                                                    selected.isActive,
+                                                    selected.status ?? '',
+                                                )
+                                            }
+                                        />
                                     ) : null}
                                 </div>
                                 <ProjectMeta project={selected} />
@@ -441,13 +541,19 @@ export default function Retreats({ projects, loadError }: RetreatsPageProps) {
                                                     <p className="text-sm font-medium text-foreground">
                                                         {t.name}
                                                     </p>
-                                                    <StatusBadge
+                                                    <StatusToggle
                                                         active={t.status}
                                                         disabled={
+                                                            t.id === null ||
                                                             updatingTariffId ===
-                                                            t.id
+                                                                t.id
                                                         }
-                                                        onClick={() =>
+                                                        ariaLabel={
+                                                            t.status
+                                                                ? 'Выключить тариф'
+                                                                : 'Включить тариф'
+                                                        }
+                                                        onChange={() =>
                                                             toggleTariffStatus(
                                                                 t.id,
                                                                 t.status,
