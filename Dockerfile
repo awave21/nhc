@@ -16,8 +16,11 @@ FROM php:8.4-fpm-alpine AS runtime
 
 WORKDIR /var/www/html
 
-RUN apk add --no-cache nginx supervisor libzip-dev icu-dev oniguruma-dev postgresql-dev \
-    && docker-php-ext-install pdo_pgsql pdo_mysql bcmath intl opcache \
+# Готовые бинарники PHP-расширений вместо компиляции из исходников:
+# install-php-extensions тянет предсобранные .so под php:8.4 и сам управляет зависимостями.
+COPY --from=mlocati/php-extension-installer:latest /usr/bin/install-php-extensions /usr/bin/
+RUN apk add --no-cache nginx supervisor \
+    && install-php-extensions pdo_pgsql pdo_mysql bcmath intl opcache \
     && rm -rf /var/cache/apk/*
 
 COPY --from=composer_deps /app/vendor ./vendor
