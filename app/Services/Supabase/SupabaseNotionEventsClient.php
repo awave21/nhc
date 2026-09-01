@@ -77,7 +77,59 @@ class SupabaseNotionEventsClient
         Cache::forget('supabase.notion_events.fetch_all');
     }
 
+    /**
+     * Сменить статус проекта в таблице projects (по project_id).
+     * Статус — строка (active/inactive).
+     */
+    public function updateProjectStatus(string $projectId, string $status): void
+    {
+        $table = (string) config('supabase.notion_events.projects_table', 'projects');
+
+        if ($this->usesDatabaseDriver()) {
+            $updated = $this->updateStatusColumn($table, 'project_id', $projectId, $status);
+
+            if ($updated === 0) {
+                throw new RuntimeException("Supabase project {$projectId} was not found.");
+            }
+
+            Cache::forget('supabase.notion_events.fetch_projects');
+
+            return;
+        }
+
+        $baseUrl = rtrim((string) config('supabase.url'), '/');
+        $key = (string) config('supabase.service_role_key');
+
+        if ($baseUrl === '' || $key === '') {
+            throw new RuntimeException('Supabase service_role key is not configured.');
+        }
+
+        $response = Http::withHeaders([
+            'apikey' => $key,
+            'Authorization' => 'Bearer '.$key,
+            'Content-Type' => 'application/json',
+        ])->timeout(15)->patch(
+            "{$baseUrl}/rest/v1/{$table}?project_id=eq.".rawurlencode($projectId),
+            ['status' => $status],
+        );
+
+        if (! $response->successful()) {
+            throw new RuntimeException("Supabase update for project {$projectId} failed: ".$response->body());
+        }
+
+        Cache::forget('supabase.notion_events.fetch_projects');
+    }
+
     private function updateEventStatusInDatabase(string $table, string $eventId, bool $status): int
+    {
+        return $this->updateStatusColumn($table, 'id', $eventId, $status);
+    }
+
+    /**
+     * Идемпотентно обновляет колонку status по ключу; ретраит транзиентные
+     * сбои соединения (SQLSTATE 08xxx) с purge пула.
+     */
+    private function updateStatusColumn(string $table, string $column, string $value, bool|string $status): int
     {
         $connection = (string) config('supabase.connection', config('database.default'));
 
@@ -85,7 +137,7 @@ class SupabaseNotionEventsClient
             2,
             fn (): int => DB::connection($connection)
                 ->table($table)
-                ->where('id', $eventId)
+                ->where($column, $value)
                 ->update(['status' => $status]),
             250,
             function (Throwable $exception) use ($connection): bool {
