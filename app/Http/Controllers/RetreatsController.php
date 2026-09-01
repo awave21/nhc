@@ -16,7 +16,7 @@ class RetreatsController extends Controller
      *
      * @var list<string>
      */
-    private const ACTIVE_PROJECT_STATUSES = ['в работе', 'в очереди'];
+    private const ACTIVE_PROJECT_STATUSES = ['в работе', 'в очереди', 'active'];
 
     /**
      * Страница «Ретриты»: проекты из Supabase projects, а внутри каждого —
@@ -70,11 +70,7 @@ class RetreatsController extends Controller
             $projectId = self::str($row['project_id'] ?? null);
             $tariffs = $projectId !== '' ? ($tariffsByProject[$projectId] ?? []) : [];
 
-            // Проект без тарифов на странице тарифов не показываем.
-            if ($tariffs === []) {
-                continue;
-            }
-
+            // Показываем все проекты, в т.ч. без тарифов (на карточке — «нет тарифов»).
             unset($tariffsByProject[$projectId]);
 
             $projects[] = $this->project($row, $tariffs);

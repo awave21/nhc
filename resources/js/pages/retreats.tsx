@@ -56,6 +56,22 @@ type RetreatsPageProps = {
     loadError: string | null;
 };
 
+// Человекочитаемый статус проекта. Сырые значения active/inactive из БД
+// показываем по-русски; остальные статусы (В работе, В очереди) — как есть.
+function projectStatusLabel(status: string): string {
+    const s = status.trim().toLowerCase();
+
+    if (s === 'inactive') {
+        return 'Неактивен';
+    }
+
+    if (s === 'active') {
+        return 'Активен';
+    }
+
+    return status;
+}
+
 function formatDate(value: string | null): string | null {
     if (!value) {
         return null;
@@ -325,7 +341,7 @@ export default function Retreats({ projects, loadError }: RetreatsPageProps) {
                                                         : 'bg-muted text-muted-foreground',
                                                 )}
                                             >
-                                                {p.status}
+                                                {projectStatusLabel(p.status)}
                                             </span>
                                         ) : null}
                                     </div>
@@ -338,7 +354,9 @@ export default function Retreats({ projects, loadError }: RetreatsPageProps) {
 
                             <div className="flex items-center gap-2 text-xs">
                                 <span className="rounded-full bg-muted px-2 py-0.5 font-medium text-muted-foreground">
-                                    {p.tariffs.length} тарифов
+                                    {p.tariffs.length > 0
+                                        ? `${p.tariffs.length} тарифов`
+                                        : 'нет тарифов'}
                                 </span>
                                 {p.activeTariffs > 0 ? (
                                     <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/15 px-2 py-0.5 font-medium text-emerald-600 dark:text-emerald-400">
@@ -380,7 +398,7 @@ export default function Retreats({ projects, loadError }: RetreatsPageProps) {
                                                     : 'bg-muted text-muted-foreground',
                                             )}
                                         >
-                                            {selected.status}
+                                            {projectStatusLabel(selected.status)}
                                         </span>
                                     ) : null}
                                 </div>
@@ -465,6 +483,11 @@ export default function Retreats({ projects, loadError }: RetreatsPageProps) {
                                             </div>
                                         );
                                     })}
+                                    {selected.tariffs.length === 0 ? (
+                                        <p className="rounded-xl border border-dashed border-sidebar-border/60 p-4 text-center text-sm text-muted-foreground">
+                                            У проекта пока нет тарифов
+                                        </p>
+                                    ) : null}
                                 </div>
                             </ScrollArea>
                         </>
